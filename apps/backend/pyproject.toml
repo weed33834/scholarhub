@@ -35,7 +35,7 @@ monitoring = [
 # DB ILIKE；配置后由 Meilisearch 提供容错拼写 + 相关性排序。
 # 启用：uv sync --extra search
 search = [
-    "meilisearch-python-sdk>=4.0,<5.0.0",
+    "meilisearch-python-sdk>=4.0,<8.0.0",
 ]
 # 可选：S3 兼容对象存储（AWS S3 / MinIO / R2 / OSS）。默认 local
 # 文件系统零依赖；SCHOLARHUB_STORAGE_BACKEND=s3 时需要本组。
