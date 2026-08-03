@@ -50,7 +50,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^15.14.0",
-    "jsdom": "^25.0.1",
+    "jsdom": "^30.0.1",
     "tailwindcss": "^4.3.0",
     "tw-animate-css": "^1.2.0",
     "typescript": "^5.7.2",
