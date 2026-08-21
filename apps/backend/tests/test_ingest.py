@@ -99,13 +99,13 @@ def _stub_httpx_response(monkeypatch: pytest.MonkeyPatch, response: Any) -> None
             return response
 
     monkeypatch.setattr(
-        "app.modules.ingest.fetchers.httpx.AsyncClient",
+        "app.core.http.httpx.AsyncClient",
         _StubAsyncClient,
     )
 
 
 def _stub_httpx_exception(monkeypatch: pytest.MonkeyPatch, exc: BaseException) -> None:
-    """Patch ``fetchers.httpx.AsyncClient.get`` to raise ``exc``."""
+    """Patch ``core.http.httpx.AsyncClient.get`` to raise ``exc``."""
 
     class _StubAsyncClient:
         def __init__(self, *args: object, **kwargs: object) -> None:
@@ -121,7 +121,7 @@ def _stub_httpx_exception(monkeypatch: pytest.MonkeyPatch, exc: BaseException) -
             raise exc
 
     monkeypatch.setattr(
-        "app.modules.ingest.fetchers.httpx.AsyncClient",
+        "app.core.http.httpx.AsyncClient",
         _StubAsyncClient,
     )
 

@@ -1,15 +1,16 @@
-"""Metadata fetchers — Crossref (DOI) and arXiv (arXiv ID) → IngestResource.
+"""Metadata fetchers — Crossref (DOI), arXiv, PubMed, OpenAlex, Semantic Scholar → IngestResource.
 
-Both fetchers are stateless async functions. They raise:
+All fetchers are stateless async functions. They raise:
 
 - ``ResourceNotFoundError`` when the upstream reports the id is unknown
   (maps to 404 in the route layer).
 - ``UpstreamError`` when the upstream times out, returns a 5xx, or any
   other transport error occurs (maps to 502).
 
-Each fetcher builds a fresh ``httpx.AsyncClient`` with a 10s timeout.
-Tests monkeypatch these functions (or the underlying ``httpx`` call) so
-no real network request is ever made in the suite.
+The httpx transport layer (timeout, error translation, JSON/XML parsing)
+is delegated to ``app.core.http`` — every fetcher calls either
+``fetch_json()`` or ``fetch_xml()`` instead of repeating the same
+try/except/parse pattern.
 """
 
 from __future__ import annotations
@@ -18,9 +19,15 @@ from collections.abc import Mapping
 from typing import Any
 from urllib.parse import quote
 
-import httpx
 from defusedxml import ElementTree as ET
 
+from app.core.http import (
+    DEFAULT_TIMEOUT as HTTP_TIMEOUT,
+    ResourceNotFoundError,
+    UpstreamError,
+    fetch_json,
+    fetch_xml,
+)
 from app.core.config import settings
 from app.modules.ingest.schemas import IngestResource
 
@@ -31,19 +38,10 @@ CROSSREF_BASE_URL = "https://api.crossref.org/works"
 # Use HTTPS for arXiv (same host/path as the plaintext endpoint) to prevent
 # in-transit tampering by a man-in-the-middle.
 ARXIV_BASE_URL = "https://export.arxiv.org/api/query"
-HTTP_TIMEOUT = 10.0
 
 # Atom namespace used by the arXiv API response.
 _ATOM_NS = "{http://www.w3.org/2005/Atom}"
 _ARXIV_NS = "{http://arxiv.org/schemas/atom}"
-
-
-class ResourceNotFoundError(Exception):
-    """Upstream reports the DOI/arXiv ID does not exist."""
-
-
-class UpstreamError(Exception):
-    """Upstream timed out or returned an error status."""
 
 
 def _crossref_authors(message: Mapping[str, Any]) -> list[str]:
@@ -84,24 +82,7 @@ async def fetch_crossref(doi: str) -> IngestResource:
         "User-Agent": f"ScholarHUB/0.1 (mailto:{CROSSREF_MAILTO})",
         "Accept": "application/json",
     }
-    try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            response = await client.get(url, headers=headers)
-    except httpx.TimeoutException as exc:
-        raise UpstreamError(f"Crossref timeout: {exc}") from exc
-    except httpx.RequestError as exc:
-        raise UpstreamError(f"Crossref request failed: {exc}") from exc
-
-    if response.status_code == 404:
-        raise ResourceNotFoundError(f"DOI not found: {doi}")
-    if response.status_code >= 400:
-        raise UpstreamError(f"Crossref returned status {response.status_code} for {doi}")
-
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise UpstreamError(f"Crossref returned non-JSON body: {exc}") from exc
-
+    payload = await fetch_json(url, headers=headers)
     message = payload.get("message")
     if not message:
         raise UpstreamError("Crossref response missing 'message' field")
@@ -169,23 +150,7 @@ async def fetch_arxiv(arxiv_id: str) -> IngestResource:
     """Fetch a single paper by arXiv ID from the arXiv Atom API."""
     # URL-encode the arXiv id so an '&' inside it cannot inject extra query params.
     url = f"{ARXIV_BASE_URL}?id_list={quote(arxiv_id, safe='')}"
-    try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            response = await client.get(url)
-    except httpx.TimeoutException as exc:
-        raise UpstreamError(f"arXiv timeout: {exc}") from exc
-    except httpx.RequestError as exc:
-        raise UpstreamError(f"arXiv request failed: {exc}") from exc
-
-    if response.status_code == 404:
-        raise ResourceNotFoundError(f"arXiv ID not found: {arxiv_id}")
-    if response.status_code >= 400:
-        raise UpstreamError(f"arXiv returned status {response.status_code} for {arxiv_id}")
-
-    try:
-        root = ET.fromstring(response.text)
-    except ET.ParseError as exc:
-        raise UpstreamError(f"arXiv returned invalid XML: {exc}") from exc
+    root = await fetch_xml(url)
 
     # Atom feed entries live directly under the root <feed> element.
     entries = [child for child in root if child.tag == f"{_ATOM_NS}entry"]
@@ -239,25 +204,7 @@ PUBMED_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 async def fetch_pubmed(pubmed_id: str) -> IngestResource:
     """Fetch a single paper by PubMed ID from the NCBI E-utilities API."""
     url = f"{PUBMED_BASE_URL}?db=pubmed&id={quote(pubmed_id, safe='')}&retmode=json"
-    try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            response = await client.get(url)
-    except httpx.TimeoutException as exc:
-        raise UpstreamError(f"PubMed timeout: {exc}") from exc
-    except httpx.RequestError as exc:
-        raise UpstreamError(f"PubMed request failed: {exc}") from exc
-
-    if response.status_code == 404:
-        raise ResourceNotFoundError(f"PubMed ID not found: {pubmed_id}")
-    if response.status_code >= 400:
-        raise UpstreamError(
-            f"PubMed returned status {response.status_code} for {pubmed_id}"
-        )
-
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise UpstreamError(f"PubMed returned non-JSON body: {exc}") from exc
+    payload = await fetch_json(url)
 
     result = payload.get("result", {})
     record = result.get(pubmed_id)
@@ -336,25 +283,7 @@ async def fetch_openalex(doi_or_id: str) -> IngestResource:
     else:
         url = f"{OPENALEX_BASE_URL}/{quote(doi_or_id, safe='')}"
 
-    try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            response = await client.get(url)
-    except httpx.TimeoutException as exc:
-        raise UpstreamError(f"OpenAlex timeout: {exc}") from exc
-    except httpx.RequestError as exc:
-        raise UpstreamError(f"OpenAlex request failed: {exc}") from exc
-
-    if response.status_code == 404:
-        raise ResourceNotFoundError(f"OpenAlex work not found: {doi_or_id}")
-    if response.status_code >= 400:
-        raise UpstreamError(
-            f"OpenAlex returned status {response.status_code} for {doi_or_id}"
-        )
-
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise UpstreamError(f"OpenAlex returned non-JSON body: {exc}") from exc
+    payload = await fetch_json(url)
 
     title = (payload.get("title") or "").strip()
     if not title:
@@ -445,29 +374,7 @@ async def fetch_semantic_scholar(paper_id: str) -> IngestResource:
         f"{SEMANTIC_SCHOLAR_BASE_URL}/{quote(paper_id, safe=':')}"
         "?fields=title,authors,year,venue,abstract,externalIds"
     )
-    try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            response = await client.get(url)
-    except httpx.TimeoutException as exc:
-        raise UpstreamError(f"Semantic Scholar timeout: {exc}") from exc
-    except httpx.RequestError as exc:
-        raise UpstreamError(f"Semantic Scholar request failed: {exc}") from exc
-
-    if response.status_code == 404:
-        raise ResourceNotFoundError(
-            f"Semantic Scholar paper not found: {paper_id}"
-        )
-    if response.status_code >= 400:
-        raise UpstreamError(
-            f"Semantic Scholar returned status {response.status_code} for {paper_id}"
-        )
-
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise UpstreamError(
-            f"Semantic Scholar returned non-JSON body: {exc}"
-        ) from exc
+    payload = await fetch_json(url)
 
     title = (payload.get("title") or "").strip()
     if not title:
