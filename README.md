@@ -10,7 +10,7 @@
 
 Submissions, peer review, publication, catalog, reader, and subscriptions are included out of the box.
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12+-3776AB.svg?logo=python&logoColor=white&style=flat-square)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=white&style=flat-square)](https://react.dev/)
@@ -19,9 +19,9 @@ Submissions, peer review, publication, catalog, reader, and subscriptions are in
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4.svg?logo=tailwindcss&logoColor=white&style=flat-square)](https://tailwindcss.com/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker&logoColor=white&style=flat-square)](https://docs.docker.com/compose/)
 
-[![Modules](https://img.shields.io/badge/modules-10-6366F1?style=flat-square&logo=modin&logoColor=white)](#modules)
-[![E2E Specs](https://img.shields.io/badge/E2E_specs-53-22C55E?style=flat-square&logo=playwright&logoColor=white)](#testing)
-[![Unit Tests](https://img.shields.io/badge/unit_tests-410-10B981?style=flat-square&logo=pytest&logoColor=white)](#testing)
+[![Modules](https://img.shields.io/badge/modules-11-6366F1?style=flat-square&logo=modin&logoColor=white)](#modules)
+[![E2E Specs](https://img.shields.io/badge/E2E_specs-64-22C55E?style=flat-square&logo=playwright&logoColor=white)](#testing)
+[![Unit Tests](https://img.shields.io/badge/unit_tests-479-10B981?style=flat-square&logo=pytest&logoColor=white)](#testing)
 [![Mypy strict](https://img.shields.io/badge/mypy-strict-2C5AA0?style=flat-square&logo=python&logoColor=white)](#testing)
 [![Status](https://img.shields.io/badge/status-pre--alpha-F59E0B?style=flat-square)](#project-status)
 [![Version](https://img.shields.io/badge/version-0.1.0-6B7280?style=flat-square)](VERSION)
@@ -90,6 +90,7 @@ Each domain capability is an independent module — disable, replace, or extend 
 | `follows` | ✓ shipped | Author/subject subscriptions + notification fan-out |
 | `notifications` | ✓ shipped | In-app notification stream, per-user isolated |
 | `ingest` | ✓ shipped | BibTeX / RIS / CSV batch import + Crossref / arXiv metadata fetch |
+| `doi` | ✓ shipped | DOI minting and registration via the DataCite API (config-gated) |
 | `recommendations` | ✓ shipped | Personalized recommendations based on reading history + explanations |
 
 ---
@@ -223,7 +224,7 @@ scholarhub/
 ├── CODE_OF_CONDUCT.md             # Code of conduct
 ├── SECURITY.md                    # Security policy
 ├── SUPPORT.md                     # Getting help
-├── LICENSE                        # MIT
+├── LICENSE                        # Apache-2.0
 ├── VERSION                        # Single source of truth for version
 ├── apps/
 │   ├── backend/                   # FastAPI service (base + modules)
@@ -327,7 +328,7 @@ See [SECURITY.md](SECURITY.md) for the full policy, threat model, and
 incident-response checklist. To scan the repo for leaked secrets:
 
 ```bash
-python scan_secrets.py
+gitleaks detect --source . --config .gitleaks.toml
 ```
 
 ---
@@ -370,7 +371,7 @@ npm run test
 
 ### End-to-end
 
-9 spec files (53 Playwright test() calls) cover complete user journeys, validating every main flow with real browser clicks:
+12 spec files (64 Playwright test() calls) cover complete user journeys, validating every main flow with real browser clicks:
 
 ```bash
 # Start the backend (test mode: SQLite + rate_limit skipped)
@@ -421,7 +422,8 @@ All 10 modules are shipped; backend + frontend + database migrations + unit test
 - [ ] Explicit refresh token denylist (currently relies on `token_version`)
 - [ ] WebAuthn / passkeys as an alternative to TOTP 2FA
 - [ ] Advanced volume/issue management UI
-- [ ] DOI registration and cross-linking
+- [x] DOI registration via DataCite (`doi` module; set `SCHOLARHUB_DATACITE_*` to enable) — shipped
+- [ ] DOI cross-linking and display
 - [ ] Full-text search (PostgreSQL FTS or Meilisearch)
 - [ ] Switch file storage from local to S3
 - [ ] Workflow visualization (submit → review → accept)
@@ -460,8 +462,8 @@ This repository is hosted at:
 
 ## License
 
-Copyright © 2026 badhope. Released under the [MIT License](LICENSE).
+Copyright © 2026 badhope. Released under the [Apache License 2.0](LICENSE).
 
-You are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of this software, for commercial and non-commercial purposes alike, provided the copyright notice and permission notice are included in all copies or substantial portions of the Software.
+You are free to use, modify, and distribute this software under the terms of the Apache License 2.0; see the license text and the [NOTICE](NOTICE) file for details.
 
 The software is provided "as is", without warranty of any kind. See [LICENSE](LICENSE) for the full text.
