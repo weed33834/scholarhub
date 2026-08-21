@@ -113,7 +113,7 @@ class S3Storage:
         secret_key: str | None,
     ) -> None:
         try:
-            import boto3
+            import boto3  # type: ignore[import-not-found]
         except ImportError as exc:  # pragma: no cover - import guard
             raise StorageError(
                 "STORAGE_BACKEND=s3 requires boto3; run 'uv sync --extra s3'"

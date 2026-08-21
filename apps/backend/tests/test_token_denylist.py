@@ -16,7 +16,6 @@ from app.core.token_denylist import (
 )
 from app.core.tokens import random_jti
 
-
 # ---------------------------------------------------------------------------
 # Unit tests — MemoryTokenDenylist
 # ---------------------------------------------------------------------------
