@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { toast } from 'sonner'
 import { useResetPassword } from '@/hooks/api/use-auth'
+import { LanguageSwitcher } from '@/components/common/language-switcher'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,6 +16,7 @@ export const Route = createFileRoute('/reset-password')({
 
 function ResetPasswordPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation('auth')
   const search = useSearch({ strict: false }) as { token?: string }
   const mut = useResetPassword()
   const [token, setToken] = useState(search.token ?? '')
@@ -31,37 +34,39 @@ function ResetPasswordPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password !== confirm) {
-      toast.error('两次输入的密码不一致')
+      toast.error(t('toast.passwordMismatch'))
       return
     }
     if (password.length < 8) {
-      toast.error('密码至少 8 位')
+      toast.error(t('toast.passwordTooShort'))
       return
     }
     try {
       await mut.mutateAsync({ token, new_password: password })
-      toast.success('密码已重置，请使用新密码登录')
+      toast.success(t('toast.resetSuccess'))
       void navigate({ to: '/login' })
     } catch (err) {
       const msg =
         err instanceof AxiosError
-          ? (err.response?.data as { detail?: string })?.detail ?? '重置失败'
-          : '重置失败'
+          ? (err.response?.data as { detail?: string })?.detail ??
+            t('toast.resetFailed')
+          : t('toast.resetFailed')
       toast.error(msg)
     }
   }
 
   return (
     <div className="mx-auto flex min-h-[80vh] max-w-md items-center">
+      <LanguageSwitcher />
       <Card className="w-full">
         <CardHeader>
-          <CardTitle className="text-2xl">重置密码</CardTitle>
-          <CardDescription>输入邮件中的 token 和新密码。</CardDescription>
+          <CardTitle className="text-2xl">{t('reset.title')}</CardTitle>
+          <CardDescription>{t('reset.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="token">重置 Token</Label>
+              <Label htmlFor="token">{t('reset.tokenLabel')}</Label>
               <Input
                 id="token"
                 value={token}
@@ -70,7 +75,7 @@ function ResetPasswordPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">新密码</Label>
+              <Label htmlFor="password">{t('reset.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -82,7 +87,7 @@ function ResetPasswordPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm">确认密码</Label>
+              <Label htmlFor="confirm">{t('reset.confirm')}</Label>
               <Input
                 id="confirm"
                 type="password"
@@ -94,12 +99,12 @@ function ResetPasswordPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={mut.isPending}>
-              {mut.isPending ? '重置中…' : '重置密码'}
+              {mut.isPending ? t('reset.submitting') : t('reset.submit')}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             <Link to="/login" className="text-primary hover:underline">
-              返回登录
+              {t('reset.backToLogin')}
             </Link>
           </p>
         </CardContent>
