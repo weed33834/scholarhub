@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import os
 import secrets
+import tempfile
 
 # 在导入 app 之前设好 env。
 # environment="test" 而非 "development"：rate_limit 中间件在 test 模式下整体跳过
@@ -26,6 +27,11 @@ import secrets
 # 超时。test 模式还让 email_backend 默认走 console（覆盖在 _mem_sender 之前）。
 os.environ["SCHOLARHUB_ENVIRONMENT"] = "test"
 os.environ["SCHOLARHUB_DATABASE_URL"] = "sqlite+aiosqlite:///./e2e_test.db"
+# 默认 ``storage_path`` 是生产挂载点 ``/data/uploads``，CI 的非 root runner 无写
+# 权限，任何上传测试都会以 ``FileNotFoundError/PermissionError`` 失败（后端
+# storage 层虽会 mkdir(parents=True)，但创建 ``/data`` 本身也需要根目录写权限）。
+# 这里在导入 app 前指向每轮独立的临时目录，保证上传/下载用例不依赖主机布局。
+os.environ["SCHOLARHUB_STORAGE_PATH"] = tempfile.mkdtemp(prefix="scholarhub-e2e-storage-")
 # Use a strong random key (per-run) — required because development mode rejects weak keys.
 os.environ["SCHOLARHUB_SECRET_KEY"] = secrets.token_hex(32)
 os.environ["SCHOLARHUB_ADMIN_PASSWORD"] = "e2e_admin_pw_12345678"

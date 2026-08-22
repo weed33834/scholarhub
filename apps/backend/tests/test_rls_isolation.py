@@ -47,7 +47,6 @@ import os
 import uuid
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -84,11 +83,22 @@ _RLS_STATEMENTS = [
 ]
 
 
-def _app_url() -> str:
-    return str(make_url(DB_URL).set(username=_APP_ROLE, password=_APP_PASSWORD))
+def _app_engine() -> create_async_engine:
+    """Engine bound to the NON-superuser app role.
+
+    Returns the engine (not a URL string) deliberately: SQLAlchemy 2.0's
+    ``str(URL)`` masks the password as ``***`` by default, so round-tripping
+    ``make_url(DB_URL).set(username=..., password=...).__str__()`` back into
+    ``create_async_engine`` sends a literal ``***`` as the password and every
+    connection fails auth. Passing the URL object keeps the real password.
+    """
+    return create_async_engine(
+        make_url(DB_URL).set(username=_APP_ROLE, password=_APP_PASSWORD),
+        echo=False,
+    )
 
 
-@pytest_asyncio.fixture(loop_scope="module", scope="module")
+@pytest.fixture(scope="function")
 async def pg_engine():
     """Real PostgreSQL engine bound to a NON-superuser role.
 
@@ -100,8 +110,12 @@ async def pg_engine():
        by the non-superuser and FORCE ROW LEVEL SECURITY actually binds
        the connecting role.
 
-    Scope=module so the schema is created once and reused across tests
-    in this file; teardown at module exit.
+    ``scope="function"`` (not module) because pytest-asyncio runs each test
+    on its own event loop (``asyncio_mode = "auto"``, no loop_scope set).
+    An async module-scoped fixture binds its engine's asyncpg connection
+    pool to the first test's loop, so later tests fail with "Future attached
+    to a different loop" / "another operation is in progress". Function scope
+    guarantees the engine and its pool live on the same loop as the test.
     """
     admin_engine = create_async_engine(DB_URL, echo=False, isolation_level="AUTOCOMMIT")
     db_name = make_url(DB_URL).database
@@ -119,7 +133,7 @@ async def pg_engine():
         await conn.execute(text(f"GRANT USAGE, CREATE ON SCHEMA public TO {_APP_ROLE}"))
     await admin_engine.dispose()
 
-    # Sanity check: fail loudly (with role state) instead of a cryptic
+# Sanity check: fail loudly (with role state) instead of a cryptic
     # "password authentication failed" if bootstrap did not stick.
     probe = create_async_engine(DB_URL, isolation_level="AUTOCOMMIT")
     async with probe.connect() as conn:
@@ -137,7 +151,7 @@ async def pg_engine():
         f"role {_APP_ROLE!r} has wrong flags: login={row.rolcanlogin} super={row.rolsuper}"
     )
 
-    engine = create_async_engine(_app_url(), echo=False)
+    engine = _app_engine()
     async with engine.begin() as conn:
         # Fresh schema owned by the non-superuser app role.
         await conn.run_sync(Base.metadata.drop_all)
@@ -155,8 +169,8 @@ async def pg_engine():
 async def _seed_two_tenants(session: AsyncSession) -> tuple[uuid.UUID, uuid.UUID]:
     """Insert two tenants and return their UUIDs.
 
-    Slug carries a random tag because tenants.slug is UNIQUE and the
-    module-scoped engine keeps data across tests.
+    Slug carries a random tag because tenants.slug is UNIQUE even though
+    the function-scoped fixture drops & recreates tables per test.
     """
     tenant_a = uuid.uuid4()
     tenant_b = uuid.uuid4()
@@ -198,17 +212,18 @@ async def _seed_resources(session: AsyncSession, tenant_a: uuid.UUID, tenant_b: 
             await session.execute(
                 text(
                     "INSERT INTO resources "
-                    "(tenant_id, type, title, authors, year, discipline, subdiscipline, "
-                    " tags, abstract, preview, doi, publisher, external_url, "
-                    " language, publication_status, created_at, updated_at) "
-                    "VALUES (:tid, 'article', :title, '[\"A. Author\"]'::jsonb, 2024, "
-                    " 'cs', 'ml', '[]'::jsonb, '', '', :doi, 'pub', NULL, "
-                    " 'en', 'published', now(), now())"
+"(tenant_id, doi, title, type, authors, year, discipline, subdiscipline, "
+                    " tags, abstract, preview, language, publication_status, "
+                    " publisher, external_url, created_at, updated_at) "
+                    "VALUES (:tid, :doi, :title, 'article', CAST(:auth AS jsonb), 2024, "
+                    " 'cs', 'ml', '[\"seed\"]'::jsonb, 'abstract', 'preview', 'en', "
+                    " 'published', 'pub', NULL, now(), now())"
                 ),
                 {
                     "tid": tid,
                     "doi": f"10.1000/{prefix}-{i}",
                     "title": f"Tenant {prefix.upper()} resource {i}",
+                    "auth": f'["Author {prefix.upper()} {i}"]',
                 },
             )
     await session.commit()
