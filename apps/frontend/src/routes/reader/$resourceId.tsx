@@ -18,6 +18,7 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EmptyState, ErrorState, Loading } from '@/components/common/state'
 import { requireAuth } from '@/lib/auth-guard'
 import { useAuthStore } from '@/lib/auth'
+import { API_BASE_URL } from '@/lib/api'
 
 // Restrict reader iframe to https: scheme so data:/blob:/javascript:
 // URLs cannot execute content inside the PDF viewer frame.
@@ -122,7 +123,7 @@ function ReaderPage() {
     if (!token) return
     const s = stateRef.current
     try {
-      void fetch(`/api/reader/history/${id}/progress`, {
+      void fetch(`${API_BASE_URL}/reader/history/${id}/progress`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
