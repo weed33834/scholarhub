@@ -539,6 +539,25 @@ async def review_submission(
             new_resource = await _materialize_resource_from_submission(db, entry)
             entry.resource_id = new_resource.id
 
+    # Audit: reviewer's approve/reject decision is a destructive state
+    # transition (terminal). Log actor + outcome so the trail survives
+    # even if the submission row is later purged. The audit row joins the
+    # SAME transaction as the status change — a crash can never produce a
+    # recorded decision without its audit record.
+    db.add(
+        AuditLog(
+            tenant_id=current_user.tenant_id,
+            actor_user_id=current_user.id,
+            action="submission.review",
+            target_type="submission",
+            target_id=str(entry.id),
+            payload={
+                "status": body.status,
+                "resource_id": entry.resource_id,
+                "admin_note_present": bool(body.admin_note),
+            },
+        )
+    )
     try:
         await db.commit()
     except IntegrityError as exc:
@@ -548,24 +567,6 @@ async def review_submission(
             detail="Submission could not be reviewed (concurrent update)",
         ) from exc
     await db.refresh(entry)
-    # Audit: reviewer's approve/reject decision is a destructive state
-    # transition (terminal). Log actor + outcome so the trail survives
-    # even if the submission row is later purged.
-    db.add(
-        AuditLog(
-            tenant_id=current_user.tenant_id,
-            actor_user_id=current_user.id,
-            action="submission.review",
-            target_type="submission",
-            target_id=str(entry.id),
-            payload={
-                "status": entry.status,
-                "resource_id": entry.resource_id,
-                "admin_note_present": bool(entry.admin_note),
-            },
-        )
-    )
-    await db.commit()
     return _to_response(entry)
 
 
@@ -654,6 +655,23 @@ async def assign_reviewer(
     if entry.status == "pending":
         entry.status = "under_review"
     try:
+        # Flush inside the try: a duplicate-assignment IntegrityError must
+        # still surface as 409. The audit row joins the SAME transaction as
+        # the assignment — no window where an assignment exists unlogged.
+        await db.flush()
+        db.add(
+            AuditLog(
+                tenant_id=current_user.tenant_id,
+                actor_user_id=current_user.id,
+                action="submission.assign_reviewer",
+                target_type="submission",
+                target_id=str(entry.id),
+                payload={
+                    "reviewer_id": reviewer.id,
+                    "assignment_id": assignment.id,
+                },
+            )
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -662,30 +680,16 @@ async def assign_reviewer(
             detail="Reviewer already assigned or concurrent update",
         ) from exc
     await db.refresh(assignment)
-    # 通知审稿人
+    # Notify reviewers
     await notifications.create(
         db,
         tenant_id=entry.tenant_id,
         user_id=reviewer.id,
         type_="review.invited",
-        title=f"您被邀请审稿：{entry.title}",
-        body=f"Submission #{entry.id} 已分配给您，请前往审稿工作台回应。",
+        title=f"You have been invited to review: {entry.title}",
+        body=f"Submission #{entry.id} has been assigned to you, please respond at the review workspace.",
         related_type="review_assignment",
         related_id=str(assignment.id),
-    )
-    await db.commit()
-    db.add(
-        AuditLog(
-            tenant_id=current_user.tenant_id,
-            actor_user_id=current_user.id,
-            action="submission.assign_reviewer",
-            target_type="submission",
-            target_id=str(entry.id),
-            payload={
-                "reviewer_id": reviewer.id,
-                "assignment_id": assignment.id,
-            },
-        )
     )
     await db.commit()
     return AssignmentResponse(
@@ -787,7 +791,7 @@ async def cancel_assignment(
             detail="Cannot cancel a completed assignment (review report exists)",
         )
     a.status = "cancelled"
-    await db.commit()
+    # Audit rides in the same transaction as the cancellation itself.
     db.add(
         AuditLog(
             tenant_id=current_user.tenant_id,
@@ -958,6 +962,22 @@ async def editor_decision(
             detail=f"Unknown decision: {decision}",
         )
 
+    # Audit joins the SAME transaction as the decision itself — the trail
+    # can never lag behind (or miss) a recorded accept/reject/revision.
+    db.add(
+        AuditLog(
+            tenant_id=current_user.tenant_id,
+            actor_user_id=current_user.id,
+            action="submission.decision",
+            target_type="submission",
+            target_id=str(entry.id),
+            payload={
+                "decision": decision,
+                "resource_id": entry.resource_id,
+                "editor_note_present": bool(body.editor_note),
+            },
+        )
+    )
     try:
         await db.commit()
     except IntegrityError as exc:
@@ -990,22 +1010,6 @@ async def editor_decision(
         ),
         related_type="resource" if accepted else "submission",
         related_id=str(entry.resource_id) if accepted else str(entry.id),
-    )
-    await db.commit()
-
-    db.add(
-        AuditLog(
-            tenant_id=current_user.tenant_id,
-            actor_user_id=current_user.id,
-            action="submission.decision",
-            target_type="submission",
-            target_id=str(entry.id),
-            payload={
-                "decision": decision,
-                "resource_id": entry.resource_id,
-                "editor_note_present": bool(body.editor_note),
-            },
-        )
     )
     await db.commit()
     return _to_response(entry)

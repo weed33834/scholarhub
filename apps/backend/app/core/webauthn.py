@@ -208,12 +208,20 @@ def generate_registration_options(
         ],
         "authenticatorSelection": {
             "residentKey": (
-                options.authenticator_selection.resident_key.value
+                (
+                    options.authenticator_selection.resident_key.value
+                    if options.authenticator_selection.resident_key
+                    else "preferred"
+                )
                 if options.authenticator_selection
                 else "preferred"
             ),
             "userVerification": (
-                options.authenticator_selection.user_verification.value
+                (
+                    options.authenticator_selection.user_verification.value
+                    if options.authenticator_selection.user_verification
+                    else "preferred"
+                )
                 if options.authenticator_selection
                 else "preferred"
             ),
@@ -315,7 +323,11 @@ def generate_authentication_options(
             }
             for c in allow_credentials
         ],
-        "userVerification": options.user_verification.value,
+        "userVerification": (
+            options.user_verification.value
+            if options.user_verification is not None
+            else "preferred"
+        ),
     }
 
 

@@ -7,6 +7,35 @@
 
 ### Added
 
+- 登录深链保持：新增 `auth-guard.ts` 统一守卫(requireAuth / requireAdmin),
+  19 个受保护路由跳转登录页时携带原始目标地址,登录(含两步验证完成)后
+  回到出发页而非一律落在仪表盘;仅接受站内绝对路径。
+- 生产环境强制双提交 CSRF：前端 api 客户端对非幂等请求回显 `X-CSRF-Token`
+  (中间件关闭时无副作用);后端 `csrf_enforced` 在 production 恒为开启,
+  开发/测试保持可选。启动时对未开启 admin 强制 2FA、注册验证码的生产部署
+  输出一次性安全态势告警。
+
+### Changed
+
+- 引用导出的 BibTeX / RIS 序列化改用 ingest 侧同款库(bibtexparser /
+  rispy),消除「导入用库、导出手写」的双实现漂移;引用键生成、类型映射
+  与字段顺序不变,22 个导出相关测试零改动通过。
+
+### Fixed
+
+- 修复通知列表同一时间戳下排序不确定的问题(决胜键 id 改为倒序),
+  根治 `test_list_returns_user_notifications` 偶发失败。
+- 可访问性：Loading 占位补充 `role="status"` + `aria-live="polite"`;
+  桌面侧边栏激活项补齐 `aria-current="page"`(与移动端外壳一致)。
+
+### Removed
+
+- 移除依赖冗余：`@testing-library/dom` 移至 devDependencies;删除无人
+  引用的独立包 `@radix-ui/react-slot`(组件统一经 `radix-ui` 元包导入);
+  修正 package.json 遗留的 MIT 许可证字段为 Apache-2.0。
+
+### Added
+
 - 新增移动端独立专用外壳(`MobileAppShell`):底部 4 Tab + 中心 FAB + "我的"底部抽屉,
   运行时按视口宽度切换,与桌面侧边栏完全独立,非响应式裁剪。
 - 目录浏览、仪表盘、详情页、阅读页四个区域做了移动专属设计与适配:
@@ -20,8 +49,34 @@
 - 新增 GitHub 镜像仓库 `weed33834/scholarhub`,与 GitCode 主仓同步发布。
 - 新增项目 LOGO、投稿-审稿-发表流程图、系统架构图(均位于 `docs/assets/`)。
 - 新增 `CHANGELOG.md`、`CODE_OF_CONDUCT.md`、`SUPPORT.md`,补齐开源治理配套。
+- 新增 CI `rls` job:以 PostgreSQL 17 service 容器运行 `tests/test_rls_isolation.py`,
+  使「双层租户隔离」安全特性首次进入 CI 门禁(此前该测试在 SQLite 下整模块跳过,零覆盖)。
 
 ### Fixed
+
+- 修复前端投稿/审稿列表 queryKey 缺少分页参数的问题:`useMySubmissions`、
+  `useAllSubmissions`、`usePendingSubmissions`、`useMyReviewAssignments` 的缓存 key
+  未包含 `page/pageSize`,staleTime 内翻页会命中旧页缓存显示错误数据。
+- 修复审稿工作流审计日志非原子写入的问题:`review_submission`、`assign_reviewer`、
+  `cancel_assignment`、`editor_decision` 四处先 commit 业务状态、再单独 commit
+  AuditLog,中途失败会产生「有决定无审计记录」;现改为与业务变更同一事务提交。
+- 修复依赖升级后累积的 39 处 mypy strict 错误(token_denylist/tenant/webauthn/
+  blinding/doi/search 等),恢复 `mypy app` 门禁为绿;同时清理存量 ruff 违例
+  (alembic 文件缺尾换行等)。
+- 修复 Node >= 24 残缺内置 Web Storage 遮蔽 jsdom 实现,导致
+  `cookie-banner.test.tsx` 5 个用例抛 `localStorage.clear is not a function`
+  的问题(tests/setup.ts 注入规范兼容的内存实现)。
+- 修复三语 README 与实际不符的问题:License 徽章/页脚 MIT → Apache-2.0(与 LICENSE
+  一致)、移除指向不存在的 `scan_secrets.py` 的引用(改为 gitleaks 命令)、模块表补上
+  已发布的 `doi` 模块、roadmap 勾选已完成的 DOI 注册、E2E/单测徽章数字校准为实测值。
+
+### Removed
+
+- 移除死代码 TOTP 2FA 链路:后端 `/api/auth/2fa/*` 路由(two_factor.py,引用模型上
+  不存在的列,调用即 500)、手写 RFC 6238 实现(core/totp.py)及其算法测试;前端
+  `use-two-factor.ts` hooks、仅被孤儿路由 `/settings` 引用的 `TwoFactorSection`,
+  以及无导航入口、无鉴权守卫的孤儿路由 `/settings` 本身。线上唯一 2FA 流程为
+  `/users/me/2fa/*` + `/auth/login/2fa`(登录页与账户安全页均使用该链路)。
 
 - 修复 `vite.config.ts` vitest 配置未排除 `tests/e2e/` 目录,导致 `vitest run`
   误将 Playwright spec 当作 vitest 用例执行(10 条虚假失败)。

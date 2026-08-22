@@ -376,6 +376,16 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @property
+    def csrf_enforced(self) -> bool:
+        """Effective CSRF enforcement.
+
+        Production always enforces double-submit CSRF — a forgotten toggle
+        must never silently disable request-forgery protection. Dev/test
+        keep the opt-in switch so local tooling and unit tests stay simple.
+        """
+        return self.csrf_enabled or self.is_production
+
+    @property
     def is_test(self) -> bool:
         return self.environment == "test"
 

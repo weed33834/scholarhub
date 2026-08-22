@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -93,9 +93,12 @@ class RedisTokenDenylist:
 
     def __init__(self, redis_url: str) -> None:
         self._redis_url = redis_url
-        self._redis: object | None = None
+        # Typed as Any on purpose: the redis client is imported lazily so
+        # production builds without the package keep a cheap import time
+        # (same pattern as RedisRateLimiterStore).
+        self._redis: Any | None = None
 
-    async def _get_redis(self) -> object:
+    async def _get_redis(self) -> Any:
         """Lazy-connect to Redis, importing the package on first use."""
         if self._redis is None:
             import redis.asyncio as aioredis
@@ -123,7 +126,7 @@ class RedisTokenDenylist:
     async def is_denied(self, token_jti: str) -> bool:
         try:
             r = await self._get_redis()
-            return await r.exists(f"{_KEY_PREFIX}{token_jti}") > 0
+            return bool(await r.exists(f"{_KEY_PREFIX}{token_jti}"))
         except Exception:
             logger.warning(
                 "redis_denylist_check_failed_falling_open",

@@ -18,6 +18,7 @@ Index layout: one index per deployment (``{prefix}_resources``) with a
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
 from app.core.config import get_settings
@@ -54,7 +55,7 @@ async def _get_client() -> Any | None:
         return _client
     settings = get_settings()
     try:
-        from meilisearch_python_sdk import AsyncClient
+        from meilisearch_python_sdk import AsyncClient  # type: ignore[import-not-found]
     except ImportError:
         logger.warning(
             "SCHOLARHUB_MEILISEARCH_URL is set but the SDK is not installed; "
@@ -118,7 +119,7 @@ async def unindex_resource(resource_id: int) -> None:
 
 async def search_resource_ids(
     *,
-    tenant_id: int,
+    tenant_id: uuid.UUID,
     q: str,
     type_: str | None = None,
     discipline: str | None = None,

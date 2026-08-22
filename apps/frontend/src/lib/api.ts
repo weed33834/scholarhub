@@ -23,6 +23,18 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  // Double-submit CSRF: echo the backend-issued `csrf` cookie back as a
+  // header on state-changing requests. Harmless when the middleware is
+  // disabled; required once it is enabled (production default).
+  if (
+    config.method &&
+    !['get', 'head', 'options'].includes(config.method.toLowerCase())
+  ) {
+    const match = document.cookie.match(/(?:^|;\s*)csrf=([^;]*)/)
+    if (match) {
+      config.headers['X-CSRF-Token'] = decodeURIComponent(match[1])
+    }
+  }
   return config
 })
 

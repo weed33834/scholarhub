@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowLeft, Search } from 'lucide-react'
-import { getAuthState } from '@/lib/auth'
 import { useIssueList } from '@/hooks/api/use-modules'
 import { PageHeader } from '@/components/common/page-header'
 import { EmptyState, ErrorState, Loading } from '@/components/common/state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { requireAdmin } from '@/lib/auth-guard'
 import {
   Table,
   TableBody,
@@ -22,9 +22,7 @@ interface IssuesSearch {
 }
 
 export const Route = createFileRoute('/admin/issues')({
-  beforeLoad: () => {
-    if (!getAuthState().isAdmin) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAdmin(location),
   validateSearch: (search: Record<string, unknown>): IssuesSearch => ({
     volume: typeof search.volume === 'string' ? search.volume : undefined,
   }),

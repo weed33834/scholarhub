@@ -18,7 +18,7 @@ database").
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import (
@@ -170,7 +170,7 @@ class SubmissionVersion(Base):
     # 唯一约束由迁移创建，防并发重投产生重号。
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     # 完整书目 payload 快照（title/authors/abstract/... 与 Submission 列同形）
-    payload: Mapped[dict] = mapped_column(JSONBVariant, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONBVariant, nullable=False)
     # 该版本对应的稿件文件 key（可能为 None：作者还没传文件）
     file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # 作者附言：v1 恒空；重投版本可填「针对审稿意见做了哪些修改」

@@ -1,19 +1,17 @@
 import { useState } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { getAuthState } from '@/lib/auth'
+import { createFileRoute } from '@tanstack/react-router'
 import { useAdminAuditLogs } from '@/hooks/api/use-modules'
 import { PageHeader } from '@/components/common/page-header'
 import { Pagination } from '@/components/common/pagination'
 import { EmptyState, ErrorState, Loading } from '@/components/common/state'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { requireAdmin } from '@/lib/auth-guard'
 
 const PAGE_SIZE = 50
 
 export const Route = createFileRoute('/admin/audit-logs')({
-  beforeLoad: () => {
-    if (!getAuthState().isAdmin) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAdmin(location),
   component: AuditLogsPage,
 })
 

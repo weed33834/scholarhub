@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { createFileRoute, redirect, useNavigate, useSearch } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { ClipboardList, Download, Eye, FileText, Gavel, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import {
   downloadSubmissionFile,
   useAdminUsers,
@@ -46,11 +45,10 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { requireAdmin } from '@/lib/auth-guard'
 
 export const Route = createFileRoute('/submissions/pending')({
-  beforeLoad: () => {
-    if (!getAuthState().isAdmin) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAdmin(location),
   component: PendingSubmissionsPage,
 })
 

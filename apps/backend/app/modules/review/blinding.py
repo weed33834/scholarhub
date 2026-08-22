@@ -15,7 +15,7 @@ Terminology (COPE / ICMJE 通行定义):
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -42,7 +42,7 @@ async def get_review_mode(db: AsyncSession, tenant_id: UUID) -> ReviewMode:
         return DEFAULT_REVIEW_MODE
     mode = settings_blob.get("review_mode")
     if mode in VALID_REVIEW_MODES:
-        return mode  # type: ignore[return-value]
+        return cast(ReviewMode, mode)
     return DEFAULT_REVIEW_MODE
 
 

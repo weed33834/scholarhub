@@ -8,7 +8,7 @@ without value re-validation surprises.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
 
@@ -182,7 +182,7 @@ class SubmissionVersionResponse(BaseModel):
     id: int
     submission_id: int
     version: int
-    payload: dict
+    payload: dict[str, Any]
     file_path: str | None = None
     note: str | None = None
     created_by: int | None = None

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { ChevronRight, Search } from 'lucide-react'
-import { getAuthState } from '@/lib/auth'
 import { useVolumeList } from '@/hooks/api/use-modules'
 import { PageHeader } from '@/components/common/page-header'
 import { EmptyState, ErrorState, Loading } from '@/components/common/state'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { requireAdmin } from '@/lib/auth-guard'
 import {
   Table,
   TableBody,
@@ -17,9 +17,7 @@ import {
 } from '@/components/ui/table'
 
 export const Route = createFileRoute('/admin/volumes')({
-  beforeLoad: () => {
-    if (!getAuthState().isAdmin) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAdmin(location),
   component: AdminVolumesPage,
 })
 

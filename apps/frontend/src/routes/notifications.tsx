@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { CheckCheck, ExternalLink, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import {
   useDeleteNotification,
   useMarkAllRead,
@@ -17,11 +16,10 @@ import { EmptyState, ErrorState, Loading } from '@/components/common/state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { requireAuth } from '@/lib/auth-guard'
 
 export const Route = createFileRoute('/notifications')({
-  beforeLoad: () => {
-    if (!getAuthState().isAuthenticated) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: NotificationsPage,
 })
 

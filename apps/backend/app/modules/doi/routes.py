@@ -6,6 +6,8 @@ any authenticated user for status check).
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -141,16 +143,16 @@ async def doi_status(
 
     return DOIStatusResponse(
         doi=registration.doi,
-        state=registration.state,  # type: ignore[arg-type]
+        state=registration.state,
         registered_at=registration.created_at,
         message=registration.message,
     )
 
 
-@router.get("/config", response_model=dict)
+@router.get("/config", response_model=dict[str, Any])
 async def doi_config(
     _: User = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Return the DOI configuration status (whether DataCite is enabled)."""
     from app.core.config import get_settings
 

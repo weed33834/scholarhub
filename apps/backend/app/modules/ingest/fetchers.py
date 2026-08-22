@@ -19,7 +19,7 @@ from collections.abc import Mapping
 from typing import Any
 from urllib.parse import quote
 
-from defusedxml import ElementTree as ET
+from defusedxml import ElementTree as ET  # type: ignore[import-untyped]
 
 from app.core.http import (
     DEFAULT_TIMEOUT as HTTP_TIMEOUT,

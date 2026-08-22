@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import { useCreateResource } from '@/hooks/api/use-modules'
 import type { PublicationStatus, ResourceCreate, ResourceType } from '@/lib/types'
 import { PageHeader } from '@/components/common/page-header'
@@ -11,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { requireAdmin } from '@/lib/auth-guard'
 import {
   Select,
   SelectContent,
@@ -20,9 +20,7 @@ import {
 } from '@/components/ui/select'
 
 export const Route = createFileRoute('/catalog/new')({
-  beforeLoad: () => {
-    if (!getAuthState().isAdmin) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAdmin(location),
   component: NewResourcePage,
 })
 

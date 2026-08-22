@@ -80,7 +80,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        if not settings.csrf_enabled:
+        if not settings.csrf_enforced:
             return await call_next(request)
         if request.method not in _UNSAFE_METHODS:
             return await call_next(request)
