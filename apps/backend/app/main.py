@@ -83,6 +83,22 @@ logger.info(
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: verify DB → bootstrap → yield → dispose."""
+    if settings.is_production:
+        # Surface security posture warnings once, at boot, where operators
+        # actually read them (instead of burying them in docs).
+        if not settings.require_2fa_for_admin:
+            logger.warning(
+                "production_security_notice",
+                detail="require_2fa_for_admin is OFF; admin accounts are protected "
+                "by password only. Set SCHOLARHUB_REQUIRE_2FA_FOR_ADMIN=true once "
+                "all admins have enrolled TOTP.",
+            )
+        if not settings.captcha_required_for_registration:
+            logger.warning(
+                "production_security_notice",
+                detail="captcha_required_for_registration is OFF; open registration "
+                "is vulnerable to scripted signups.",
+            )
     if not settings.is_test:
         await _verify_db_with_retry()
         await run_bootstrap()

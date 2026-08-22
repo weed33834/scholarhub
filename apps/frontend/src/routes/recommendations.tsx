@@ -1,13 +1,13 @@
-import { createFileRoute, Link, redirect, useNavigate, useSearch } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Bookmark } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import { useMyRecommendations } from '@/hooks/api/use-modules'
 import { PageHeader } from '@/components/common/page-header'
 import { EmptyState, ErrorState, Loading } from '@/components/common/state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { requireAuth } from '@/lib/auth-guard'
 import {
   Select,
   SelectContent,
@@ -17,9 +17,7 @@ import {
 } from '@/components/ui/select'
 
 export const Route = createFileRoute('/recommendations')({
-  beforeLoad: () => {
-    if (!getAuthState().isAuthenticated) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: RecommendationsPage,
 })
 

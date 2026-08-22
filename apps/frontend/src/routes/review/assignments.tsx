@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { createFileRoute, redirect, useNavigate, useSearch } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { Check, Download, Eye, FileText, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import {
   downloadSubmissionFile,
   useAcceptAssignment,
@@ -37,12 +36,10 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { requireAuth } from '@/lib/auth-guard'
 
 export const Route = createFileRoute('/review/assignments')({
-  beforeLoad: () => {
-    // 审稿工作台需要登录；具体 reviewer 角色由后端强制（403 由 UI 兜底）
-    if (!getAuthState().isAuthenticated) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: ReviewWorkbenchPage,
 })
 

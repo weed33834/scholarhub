@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { AlertCircle, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import { useFetchIngest, useParseIngest } from '@/hooks/api/use-modules'
 import type { FetchSource, IngestResource, ParseFormat } from '@/lib/types'
 import { PageHeader } from '@/components/common/page-header'
@@ -20,11 +19,10 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { requireAuth } from '@/lib/auth-guard'
 
 export const Route = createFileRoute('/ingest/')({
-  beforeLoad: () => {
-    if (!getAuthState().isAuthenticated) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: IngestPage,
 })
 

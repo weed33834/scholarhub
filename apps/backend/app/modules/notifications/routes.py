@@ -77,7 +77,9 @@ async def list_notifications(
         base,
         page=page,
         page_size=page_size,
-        order_by=(desc(Notification.created_at), Notification.id.asc()),
+        # 同一时间戳（SQLite 秒级精度）内按 id 倒序决胜，保证「最新优先」
+        # 在并发/快速连写下依然成立。
+        order_by=(desc(Notification.created_at), Notification.id.desc()),
     )
     return NotificationListResponse(
         data=[NotificationResponse.model_validate(r) for r in rows],

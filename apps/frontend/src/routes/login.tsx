@@ -26,6 +26,20 @@ function LoginPage() {
   const [pendingToken, setPendingToken] = useState<string | null>(null)
   const [totpCode, setTotpCode] = useState('')
 
+  // 把守卫带来的深链还原成导航参数：只接受站内绝对路径；查询串拆成
+  // search 对象，避免 navigate({ to }) 直接收到裸查询串。
+  const resolveRedirectTarget = (
+    raw?: string,
+  ): { to: string; search?: Record<string, string> } => {
+    const fallback = { to: '/dashboard' }
+    if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return fallback
+    const [pathname, query = ''] = raw.split('?')
+    if (!pathname) return fallback
+    const search: Record<string, string> = {}
+    for (const [k, v] of new URLSearchParams(query)) search[k] = v
+    return Object.keys(search).length > 0 ? { to: pathname, search } : { to: pathname }
+  }
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -37,7 +51,7 @@ function LoginPage() {
         return
       }
       toast.success('登录成功')
-      void navigate({ to: search.redirect ?? '/dashboard' })
+      void navigate(resolveRedirectTarget(search.redirect))
     } catch (err) {
       const msg =
         err instanceof AxiosError

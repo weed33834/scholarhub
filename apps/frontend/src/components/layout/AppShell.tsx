@@ -166,6 +166,7 @@ export function AppShell() {
               <Link
                 key={item.to}
                 to={item.to}
+                aria-current={active ? 'page' : undefined}
                 className={cn(
                   'mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
                   active

@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { ChevronLeft, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import {
   useAddReadingListItem,
   useReadingList,
@@ -28,6 +27,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { requireAuth } from '@/lib/auth-guard'
 import {
   Table,
   TableBody,
@@ -38,9 +38,7 @@ import {
 } from '@/components/ui/table'
 
 export const Route = createFileRoute('/library/$listId')({
-  beforeLoad: () => {
-    if (!getAuthState().isAuthenticated) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: LibraryListDetailPage,
 })
 

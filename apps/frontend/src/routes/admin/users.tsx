@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { MoreHorizontal, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import { useAdminUsers, useAssignRole, useRevokeRole, useSetUserActive } from '@/hooks/api/use-modules'
 import { useAuth } from '@/hooks/use-auth'
 import type { AssignableRole, UserResponse } from '@/lib/types'
@@ -22,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { requireAdmin } from '@/lib/auth-guard'
 import {
   Table,
   TableBody,
@@ -51,9 +51,7 @@ const ROLE_LABELS: Record<AssignableRole, string> = {
 }
 
 export const Route = createFileRoute('/admin/users')({
-  beforeLoad: () => {
-    if (!getAuthState().isAdmin) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAdmin(location),
   component: AdminUsersPage,
 })
 

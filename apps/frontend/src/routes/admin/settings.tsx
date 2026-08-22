@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { Info } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import { useReviewMode, useSetReviewMode } from '@/hooks/api/use-modules'
 import type { ReviewMode } from '@/lib/types'
 import { PageHeader } from '@/components/common/page-header'
 import { ErrorState, Loading } from '@/components/common/state'
 import { Button } from '@/components/ui/button'
+import { requireAdmin } from '@/lib/auth-guard'
 import {
   Card,
   CardContent,
@@ -19,9 +19,7 @@ import {
 } from '@/components/ui/card'
 
 export const Route = createFileRoute('/admin/settings')({
-  beforeLoad: () => {
-    if (!getAuthState().isAdmin) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAdmin(location),
   component: AdminSettingsPage,
 })
 

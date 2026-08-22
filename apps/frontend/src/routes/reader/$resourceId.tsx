@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronLeft, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import {
   useReadingProgress,
@@ -17,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EmptyState, ErrorState, Loading } from '@/components/common/state'
+import { requireAuth } from '@/lib/auth-guard'
 
 // Restrict reader iframe to https: scheme so data:/blob:/javascript:
 // URLs cannot execute content inside the PDF viewer frame.
@@ -30,9 +30,7 @@ function isSafeDownloadUrl(url: string): boolean {
 }
 
 export const Route = createFileRoute('/reader/$resourceId')({
-  beforeLoad: () => {
-    if (!getAuthState().isAuthenticated) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: ReaderPage,
 })
 
