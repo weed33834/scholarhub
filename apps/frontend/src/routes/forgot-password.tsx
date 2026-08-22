@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useForgotPassword } from '@/hooks/api/use-auth'
+import { LanguageSwitcher } from '@/components/common/language-switcher'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,6 +14,7 @@ export const Route = createFileRoute('/forgot-password')({
 })
 
 function ForgotPasswordPage() {
+  const { t } = useTranslation('auth')
   const mut = useForgotPassword()
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
@@ -22,38 +25,34 @@ function ForgotPasswordPage() {
       await mut.mutateAsync({ email })
       setSent(true)
       // backend 总是返回 200，不暴露账号是否存在
-      toast.success('如果该邮箱已注册，重置邮件已发送')
+      toast.success(t('forgot.sentToast'))
     } catch {
-      toast.error('请求失败，请稍后重试')
+      toast.error(t('toast.resetRequestFailed'))
     }
   }
 
   return (
     <div className="mx-auto flex min-h-[80vh] max-w-md items-center">
+      <LanguageSwitcher />
       <Card className="w-full">
         <CardHeader>
-          <CardTitle className="text-2xl">忘记密码</CardTitle>
-          <CardDescription>
-            输入注册邮箱，我们会发送密码重置链接到你的邮箱。
-          </CardDescription>
+          <CardTitle className="text-2xl">{t('forgot.title')}</CardTitle>
+          <CardDescription>{t('forgot.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           {sent ? (
             <div className="space-y-4 text-sm text-muted-foreground">
-              <p>
-                如果该邮箱已注册，重置邮件已发送。请在 30 分钟内完成重置；
-                邮件中的链接形如 <code>/reset-password?token=…</code>。
-              </p>
+              <p>{t('forgot.sentNotice')}</p>
               <p>
                 <Link to="/login" className="text-primary hover:underline">
-                  返回登录
+                  {t('forgot.backToLogin')}
                 </Link>
               </p>
             </div>
           ) : (
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">邮箱</Label>
+                <Label htmlFor="email">{t('forgot.email')}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -64,11 +63,11 @@ function ForgotPasswordPage() {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={mut.isPending}>
-                {mut.isPending ? '发送中…' : '发送重置邮件'}
+                {mut.isPending ? t('forgot.submitting') : t('forgot.submit')}
               </Button>
               <p className="text-center text-sm text-muted-foreground">
                 <Link to="/login" className="text-primary hover:underline">
-                  返回登录
+                  {t('forgot.backToLogin')}
                 </Link>
               </p>
             </form>

@@ -24,7 +24,7 @@ Submissions, peer review, publication, catalog, reader, and subscriptions are in
 [![Unit Tests](https://img.shields.io/badge/unit_tests-479-10B981?style=flat-square&logo=pytest&logoColor=white)](#testing)
 [![Mypy strict](https://img.shields.io/badge/mypy-strict-2C5AA0?style=flat-square&logo=python&logoColor=white)](#testing)
 [![Status](https://img.shields.io/badge/status-pre--alpha-F59E0B?style=flat-square)](#project-status)
-[![Version](https://img.shields.io/badge/version-0.1.0-6B7280?style=flat-square)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.1.3-6B7280?style=flat-square)](VERSION)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square&logo=github&logoColor=white)](CONTRIBUTING.md)
 
 [![GitHub](https://img.shields.io/badge/GitHub-weed33834%2Fscholarhub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/weed33834/scholarhub)

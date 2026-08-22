@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { isTwoFactorRequired } from '@/lib/types'
 import { useLogin, useTwoFactorLogin } from '@/hooks/api/use-auth'
+import { LanguageSwitcher } from '@/components/common/language-switcher'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,6 +19,7 @@ export const Route = createFileRoute('/login')({
 
 function LoginPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation('auth')
   const search = useSearch({ strict: false }) as { redirect?: string }
   const loginMut = useLogin()
   const twoFactorMut = useTwoFactorLogin()
@@ -50,13 +53,13 @@ function LoginPage() {
         setTotpCode('')
         return
       }
-      toast.success('登录成功')
+      toast.success(t('toast.loginSuccess'))
       void navigate(resolveRedirectTarget(search.redirect))
     } catch (err) {
       const msg =
         err instanceof AxiosError
-          ? (err.response?.data as { detail?: string })?.detail ?? '登录失败'
-          : '登录失败'
+          ? (err.response?.data as { detail?: string })?.detail ?? t('toast.loginFailed')
+          : t('toast.loginFailed')
       toast.error(msg)
     }
   }
@@ -69,7 +72,7 @@ function LoginPage() {
         pending_token: pendingToken,
         code: totpCode,
       })
-      toast.success('登录成功')
+      toast.success(t('toast.loginSuccess'))
       void navigate({ to: search.redirect ?? '/dashboard' })
     } catch (err) {
       const status =
@@ -81,14 +84,14 @@ function LoginPage() {
             : undefined
         // pending token 过期（5 分钟）→ 回到第一步重新输密码
         if (detail?.includes('session')) {
-          toast.error('验证会话已过期，请重新登录')
+          toast.error(t('loginTwofa.sessionExpired'))
           setPendingToken(null)
           return
         }
-        toast.error('验证码错误，请重试')
+        toast.error(t('loginTwofa.codeInvalid'))
         return
       }
-      toast.error('验证失败，请重试')
+      toast.error(t('loginTwofa.verifyFailed'))
     }
   }
 
@@ -99,7 +102,7 @@ function LoginPage() {
   const onOidcLogin = () => {
     const provider = import.meta.env.VITE_OIDC_PROVIDER ?? 'google'
     if (!OIDC_PROVIDERS.includes(provider as (typeof OIDC_PROVIDERS)[number])) {
-      toast.error('OIDC provider 配置无效')
+      toast.error(t('toast.invalidOidcProvider'))
       return
     }
     window.location.href = `${api.defaults.baseURL}/auth/oidc/${provider}/login`
@@ -111,24 +114,24 @@ function LoginPage() {
   if (pendingToken) {
     return (
       <div className="mx-auto flex min-h-[80vh] max-w-md items-center">
+        <LanguageSwitcher />
         <Card className="w-full">
           <CardHeader>
-            <CardTitle className="text-2xl">两步验证</CardTitle>
-            <CardDescription>
-              输入身份验证器 App 中的 6 位验证码，或一个未使用的恢复码。
+            <CardTitle className="text-2xl">{t('loginTwofa.title')}</CardTitle>
+            <CardDescription>{t('loginTwofa.description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={onSubmitTwoFactor} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="totp-code">验证码</Label>
+                <Label htmlFor="totp-code">{t('loginTwofa.codeLabel')}</Label>
                 <Input
                   id="totp-code"
                   value={totpCode}
                   onChange={(e) => setTotpCode(e.target.value)}
                   autoComplete="one-time-code"
                   inputMode="numeric"
-                  placeholder="123456 或 xxxx-xxxx-xxxx"
+                  placeholder={t('loginTwofa.codePlaceholder')}
                   autoFocus
                   required
                   minLength={6}
@@ -140,16 +143,14 @@ function LoginPage() {
                 disabled={twoFactorMut.isPending}
                 data-testid="confirm-2fa"
               >
-                {twoFactorMut.isPending ? '验证中…' : '验证并登录'}
+                {twoFactorMut.isPending ? t('loginTwofa.verifying') : t('loginTwofa.submit')}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 className="w-full"
                 onClick={() => setPendingToken(null)}
-              >
-                返回重新登录
-              </Button>
+              >{t('loginTwofa.back')}</Button>
             </form>
           </CardContent>
         </Card>
@@ -159,15 +160,16 @@ function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-[80vh] max-w-md items-center">
+      <LanguageSwitcher />
       <Card className="w-full">
         <CardHeader>
-          <CardTitle className="text-2xl">登录</CardTitle>
-          <CardDescription>使用账号密码登录 ScholarHUB。</CardDescription>
+          <CardTitle className="text-2xl">{t('login.title')}</CardTitle>
+          <CardDescription>{t('login.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">用户名或邮箱</Label>
+              <Label htmlFor="username">{t('login.username')}</Label>
               <Input
                 id="username"
                 value={username}
@@ -178,12 +180,11 @@ function LoginPage() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">密码</Label>
+                <Label htmlFor="password">{t('login.password')}</Label>
                 <Link
                   to="/forgot-password"
                   className="text-xs text-muted-foreground hover:text-primary"
-                >
-                  忘记密码？
+                >{t('login.forgot')}
                 </Link>
               </div>
               <Input
@@ -196,7 +197,7 @@ function LoginPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loginMut.isPending}>
-              {loginMut.isPending ? '登录中…' : '登录'}
+              {loginMut.isPending ? t('login.submitting') : t('login.submit')}
             </Button>
           </form>
 
@@ -204,20 +205,17 @@ function LoginPage() {
             <>
               <div className="my-4 flex items-center gap-2 text-xs text-muted-foreground">
                 <Separator className="flex-1" />
-                或
+                {t('login.or')}
                 <Separator className="flex-1" />
               </div>
               <Button variant="outline" className="w-full" onClick={onOidcLogin}>
-                使用 SSO 登录
+                {t('login.sso')}
               </Button>
             </>
           )}
 
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            没有账号？{' '}
-            <Link to="/register" className="text-primary hover:underline">
-              注册
-            </Link>
+          <p className="mt-4 text-center text-sm text-muted-foreground">{t('login.noAccount')}{' '}
+            <Link to="/register" className="text-primary hover:underline">{t('login.toRegister')}</Link>
           </p>
         </CardContent>
       </Card>

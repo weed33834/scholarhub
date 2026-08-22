@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { toast } from 'sonner'
 import { useRegister } from '@/hooks/api/use-auth'
+import { LanguageSwitcher } from '@/components/common/language-switcher'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,6 +16,7 @@ export const Route = createFileRoute('/register')({
 
 function RegisterPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation('auth')
   const registerMut = useRegister()
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
@@ -23,37 +26,39 @@ function RegisterPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password !== confirm) {
-      toast.error('两次输入的密码不一致')
+      toast.error(t('toast.passwordMismatch'))
       return
     }
     if (password.length < 8) {
-      toast.error('密码至少 8 位')
+      toast.error(t('toast.passwordTooShort'))
       return
     }
     try {
       await registerMut.mutateAsync({ email, username, password })
-      toast.success('注册成功，请查收邮件完成验证')
+      toast.success(t('toast.registerSuccess'))
       void navigate({ to: '/verify-email', search: { email } })
     } catch (err) {
       const msg =
         err instanceof AxiosError
-          ? (err.response?.data as { detail?: string })?.detail ?? '注册失败'
-          : '注册失败'
+          ? (err.response?.data as { detail?: string })?.detail ??
+            t('toast.registerFailed')
+          : t('toast.registerFailed')
       toast.error(msg)
     }
   }
 
   return (
     <div className="mx-auto flex min-h-[80vh] max-w-md items-center">
+      <LanguageSwitcher />
       <Card className="w-full">
         <CardHeader>
-          <CardTitle className="text-2xl">注册</CardTitle>
-          <CardDescription>创建 ScholarHUB 账号，开始管理你的学术资源。</CardDescription>
+          <CardTitle className="text-2xl">{t('register.title')}</CardTitle>
+          <CardDescription>{t('register.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">邮箱</Label>
+              <Label htmlFor="email">{t('register.email')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -64,7 +69,7 @@ function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="username">用户名</Label>
+              <Label htmlFor="username">{t('register.username')}</Label>
               <Input
                 id="username"
                 value={username}
@@ -75,7 +80,7 @@ function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
+              <Label htmlFor="password">{t('register.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -87,7 +92,7 @@ function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm">确认密码</Label>
+              <Label htmlFor="confirm">{t('register.confirm')}</Label>
               <Input
                 id="confirm"
                 type="password"
@@ -99,13 +104,13 @@ function RegisterPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={registerMut.isPending}>
-              {registerMut.isPending ? '注册中…' : '注册'}
+              {registerMut.isPending ? t('register.submitting') : t('register.submit')}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            已有账号？{' '}
+            {t('register.hasAccount')}{' '}
             <Link to="/login" className="text-primary hover:underline">
-              登录
+              {t('register.toLogin')}
             </Link>
           </p>
         </CardContent>
