@@ -69,7 +69,7 @@ export function CookieBanner() {
 
   return (
     <div
-      role="dialog"
+      role="region"
       aria-live="polite"
       aria-label="Cookie consent"
       data-testid="cookie-banner"
