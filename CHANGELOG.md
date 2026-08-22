@@ -7,6 +7,35 @@
 
 ### Added
 
+- 登录深链保持：新增 `auth-guard.ts` 统一守卫(requireAuth / requireAdmin),
+  19 个受保护路由跳转登录页时携带原始目标地址,登录(含两步验证完成)后
+  回到出发页而非一律落在仪表盘;仅接受站内绝对路径。
+- 生产环境强制双提交 CSRF：前端 api 客户端对非幂等请求回显 `X-CSRF-Token`
+  (中间件关闭时无副作用);后端 `csrf_enforced` 在 production 恒为开启,
+  开发/测试保持可选。启动时对未开启 admin 强制 2FA、注册验证码的生产部署
+  输出一次性安全态势告警。
+
+### Changed
+
+- 引用导出的 BibTeX / RIS 序列化改用 ingest 侧同款库(bibtexparser /
+  rispy),消除「导入用库、导出手写」的双实现漂移;引用键生成、类型映射
+  与字段顺序不变,22 个导出相关测试零改动通过。
+
+### Fixed
+
+- 修复通知列表同一时间戳下排序不确定的问题(决胜键 id 改为倒序),
+  根治 `test_list_returns_user_notifications` 偶发失败。
+- 可访问性：Loading 占位补充 `role="status"` + `aria-live="polite"`;
+  桌面侧边栏激活项补齐 `aria-current="page"`(与移动端外壳一致)。
+
+### Removed
+
+- 移除依赖冗余：`@testing-library/dom` 移至 devDependencies;删除无人
+  引用的独立包 `@radix-ui/react-slot`(组件统一经 `radix-ui` 元包导入);
+  修正 package.json 遗留的 MIT 许可证字段为 Apache-2.0。
+
+### Added
+
 - 新增移动端独立专用外壳(`MobileAppShell`):底部 4 Tab + 中心 FAB + "我的"底部抽屉,
   运行时按视口宽度切换,与桌面侧边栏完全独立,非响应式裁剪。
 - 目录浏览、仪表盘、详情页、阅读页四个区域做了移动专属设计与适配:
