@@ -418,15 +418,16 @@ All 10 modules are shipped; backend + frontend + database migrations + unit test
 - [x] Discipline/subdiscipline ontology tables — shipped
 - [x] Crossref enrichment (publisher / journal abbreviation / volume / issue / page / ISSN) — shipped
 - [x] Privacy page + cookie consent banner + retention policy — shipped
-- [ ] Multi-tenant mode (host-header → tenant mapping table)
-- [ ] Explicit refresh token denylist (currently relies on `token_version`)
-- [ ] WebAuthn / passkeys as an alternative to TOTP 2FA
-- [ ] Advanced volume/issue management UI
+- [x] Multi-tenant mode (host-header → tenant mapping) — shipped (`tenant_hosts` admin API + middleware resolution + cache)
+- [x] Explicit refresh token denylist — shipped (Redis/memory pluggable, `app/core/token_denylist.py`)
+- [ ] WebAuthn / passkeys — backend + API shipped; frontend management UI pending
+- [ ] Advanced volume/issue management UI (real endpoints replacing the client-side heuristic)
 - [x] DOI registration via DataCite (`doi` module; set `SCHOLARHUB_DATACITE_*` to enable) — shipped
 - [ ] DOI cross-linking and display
-- [ ] Full-text search (PostgreSQL FTS or Meilisearch)
-- [ ] Switch file storage from local to S3
+- [x] Full-text search — shipped as opt-in Meilisearch integration with DB ILIKE fallback
+- [x] Switch file storage from local to S3 — shipped (`storage_backend=s3`, MinIO/R2/OSS compatible)
 - [ ] Workflow visualization (submit → review → accept)
+- [ ] i18n phase 2: migrate catalog / app-shell pages (infrastructure + auth cluster done in 0.2.0)
 
 ---
 
