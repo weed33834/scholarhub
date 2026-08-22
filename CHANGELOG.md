@@ -7,6 +7,29 @@
 
 ### Added
 
+- 管理端用户搜索改为服务端实现:`GET /admin/users?q=` 对 username/email
+  做全表大小写不敏感子串匹配(LIKE 通配符按字面量转义);前端 300ms 防抖
+  接入,queryKey 携带 q 防止跨词缓存串页。旧方案只在当前页 50 条内过滤。
+- CI 增加 mobile 视口 E2E 项目(iPhone 13 / MobileAppShell 用例),与
+  chromium 并行门禁;main 分支启用分支保护,backend / frontend / rls /
+  e2e 四项检查全部通过方可合并。
+- 稿件上传内容嗅探(新增 `app/core/filescan.py`):PDF / ZIP(DOCX) /
+  OLE2(DOC) / PostScript / 纯文本魔数校验,声明 MIME 与真实内容不符时
+  返回 415,杜绝伪装上传;零第三方依赖。
+
+### Changed
+
+- 上传链路内存占用有界化:请求体经 SpooledTemporaryFile(8MB 内存阈值,
+  超出落盘)流式写入存储,LocalStorage 在工作线程分块拷贝,S3 直接透传;
+  本地后端下载改用 FileResponse 真·流式(支持 Range/ETag),不再整文件
+   读入内存。
+- 阅读页时长统计重构:每秒 setState 引发的整页重渲染(60 次/分钟)改为
+  ref 累加 + 15s 粗粒度同步展示(4 次/分钟);新增 pagehide keepalive
+  上报与切后台即时 flush,关标签页最多丢失的阅读时长从 29s 降至 ~0。
+- API 客户端测试重写:mock axios 的同义反复断言替换为真实实例 + 可编程
+  adapter 的行为测试,覆盖 401 单飞刷新、并发共享、刷新失败登出、防循环
+  与 CSRF 头注入等此前零覆盖的关键路径。
+
 - 登录深链保持：新增 `auth-guard.ts` 统一守卫(requireAuth / requireAdmin),
   19 个受保护路由跳转登录页时携带原始目标地址,登录(含两步验证完成)后
   回到出发页而非一律落在仪表盘;仅接受站内绝对路径。
