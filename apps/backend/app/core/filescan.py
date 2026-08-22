@@ -36,16 +36,16 @@ def sniff_kind(head: bytes) -> str | None:
     if head.startswith(_PS_BINARY_MAGIC) or head.startswith(_PS_TEXT_MAGIC):
         return "postscript"
 
-    # text/plain heuristic: no NUL bytes and decodable as UTF-8. Binary
-    # formats almost always contain NULs early, so this keeps false
-    # positives negligible while accepting every honest text upload.
+    # text/plain heuristic: no NUL bytes and overwhelmingly printable
+    # characters. Deliberately NOT requiring valid UTF-8 — legacy-encoded
+    # (GBK/Shift-JIS/Latin-1) plain-text manuscripts are legitimate uploads,
+    # while binary formats almost always contain NULs or dense control
+    # bytes, so the ratio check keeps false positives negligible.
     sample = head[:4096]
     if sample and b"\x00" not in sample:
-        try:
-            sample.decode("utf-8")
+        control = sum(1 for b in sample if b < 0x20 and b not in (0x09, 0x0A, 0x0D, 0x0C))
+        if control <= len(sample) * 0.05:
             return "text"
-        except UnicodeDecodeError:
-            pass
     return None
 
 

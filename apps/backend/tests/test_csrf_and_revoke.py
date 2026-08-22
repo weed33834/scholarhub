@@ -126,3 +126,51 @@ async def test_csrf_does_not_apply_to_safe_methods(
     access = test_user["token"]
     r = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {access}"})
     assert r.status_code == 200
+
+@pytest.mark.asyncio
+async def test_csrf_cookie_is_planted_on_safe_request(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """0.2.0 回归修复：强制模式下中间件必须在响应上种下 csrf cookie。
+
+    此前 _ensure_csrf_cookie 定义了却从未被调用 —— 首次访问的客户端
+    没有 cookie，后台 refresh 会被 403 拒绝，用户每次 access token
+    过期即被登出。"""
+    _enable_csrf(monkeypatch)
+    r = await client.get("/api/health")
+    assert r.status_code == 200
+    set_cookie = r.headers.get("set-cookie", "")
+    assert "csrf=" in set_cookie.lower()
+
+
+@pytest.mark.asyncio
+async def test_csrf_cookie_not_reissued_when_already_present(
+    client: AsyncClient,
+    test_user: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """请求已携带 csrf cookie 时不应重设（值保持稳定，避免并发竞态）。"""
+    _enable_csrf(monkeypatch)
+    access = test_user["token"]
+    r = await client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {access}"},
+        cookies={"csrf": "stable-value"},
+    )
+    assert r.status_code == 200
+    assert "csrf=" not in r.headers.get("set-cookie", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_csrf_rejection_response_also_plants_cookie(
+    client: AsyncClient,
+    test_user: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """403 拒绝响应同样种 cookie：客户端拿到值后下次重试即可带上配对头。"""
+    _enable_csrf(monkeypatch)
+    refresh = test_user["refresh_token"]
+    r = await client.post("/api/auth/refresh", json={"refresh_token": refresh})
+    assert r.status_code == 403
+    assert "csrf=" in r.headers.get("set-cookie", "").lower()
