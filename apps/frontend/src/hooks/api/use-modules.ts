@@ -72,17 +72,21 @@ export const keys = {
     fileAsset: (id: number) => ['reader', 'file-assets', id] as const,
   },
   submission: {
-    mine: (status?: string) => ['submissions', 'mine', status ?? 'all'] as const,
-    all: (status?: string) => ['submissions', 'all', status ?? 'all'] as const,
-    pending: () => ['submissions', 'pending'] as const,
+    // 分页参数必须进 key：否则 staleTime 内翻页会命中旧页缓存
+    mine: (status?: string, page = 1, pageSize = 20) =>
+      ['submissions', 'mine', status ?? 'all', page, pageSize] as const,
+    all: (status?: string, page = 1, pageSize = 20) =>
+      ['submissions', 'all', status ?? 'all', page, pageSize] as const,
+    pending: (page = 1, pageSize = 20) =>
+      ['submissions', 'pending', page, pageSize] as const,
     detail: (id: number) => ['submissions', 'detail', id] as const,
     assignments: (id: number) => ['submissions', id, 'assignments'] as const,
     reports: (id: number) => ['submissions', id, 'reports'] as const,
     versions: (id: number) => ['submissions', id, 'versions'] as const,
   },
   review: {
-    myAssignments: (status?: string) =>
-      ['review', 'my-assignments', status ?? 'all'] as const,
+    myAssignments: (status?: string, page = 1, pageSize = 20) =>
+      ['review', 'my-assignments', status ?? 'all', page, pageSize] as const,
     assignment: (id: number) => ['review', 'assignment', id] as const,
     // 审稿人查看分配稿件的完整内容
     submission: (assignmentId: number) =>
@@ -330,7 +334,7 @@ export function useCreateSubmission() {
 
 export function useMySubmissions(status?: string, page = 1, pageSize = 20) {
   return useQuery<SubmissionListResponse>({
-    queryKey: keys.submission.mine(status),
+    queryKey: keys.submission.mine(status, page, pageSize),
     queryFn: async () =>
       (await api.get<SubmissionListResponse>('/submissions/me', {
         params: { status, page, page_size: pageSize },
@@ -340,7 +344,7 @@ export function useMySubmissions(status?: string, page = 1, pageSize = 20) {
 
 export function useAllSubmissions(status?: string, page = 1, pageSize = 20) {
   return useQuery<SubmissionListResponse>({
-    queryKey: keys.submission.all(status),
+    queryKey: keys.submission.all(status, page, pageSize),
     queryFn: async () =>
       (await api.get<SubmissionListResponse>('/submissions', {
         params: { status, page, page_size: pageSize },
@@ -350,7 +354,7 @@ export function useAllSubmissions(status?: string, page = 1, pageSize = 20) {
 
 export function usePendingSubmissions(page = 1, pageSize = 20) {
   return useQuery<SubmissionListResponse>({
-    queryKey: keys.submission.pending(),
+    queryKey: keys.submission.pending(page, pageSize),
     queryFn: async () =>
       (await api.get<SubmissionListResponse>('/submissions/pending', {
         params: { page, page_size: pageSize },
@@ -542,7 +546,7 @@ export function useSubmissionReports(id: number) {
 // --- Reviewer side ---
 export function useMyReviewAssignments(status?: string, page = 1, pageSize = 20) {
   return useQuery<AssignmentListResponse>({
-    queryKey: keys.review.myAssignments(status),
+    queryKey: keys.review.myAssignments(status, page, pageSize),
     queryFn: async () =>
       (await api.get<AssignmentListResponse>('/review/assignments/me', {
         params: { status, page, page_size: pageSize },

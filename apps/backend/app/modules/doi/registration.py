@@ -183,7 +183,8 @@ async def get_doi_metadata(doi: str) -> dict[str, Any] | None:
             if resp.status_code >= 400:
                 logger.warning("DataCite GET failed: %s %s", resp.status_code, resp.text[:200])
                 return None
-            return resp.json()
+            payload: dict[str, Any] = resp.json()
+            return payload
     except httpx.TimeoutException:
         logger.warning("DataCite GET timeout for %s", doi)
         return None

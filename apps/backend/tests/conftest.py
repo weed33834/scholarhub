@@ -15,9 +15,21 @@ Strategy:
 from __future__ import annotations
 
 import os
+import tempfile
 from collections.abc import AsyncGenerator
 
 # Must run before any `app.*` import so Settings() reads test env.
+# The default ``SCHOLARHUB_STORAGE_PATH`` is ``/data/uploads`` (a production
+# mount point with no write permission on CI). Routing real file uploads at
+# that host path makes every storage-backed test fail with
+# ``PermissionError: '/data'`` on hosted runners. Point storage at a
+# per-process temp dir so upload/download tests never depend on the host
+# filesystem layout. Created here (not via a fixture) so the env var is set
+# before ``Settings()`` is instantiated during ``app.*`` import.
+os.environ.setdefault(
+    "SCHOLARHUB_STORAGE_PATH",
+    tempfile.mkdtemp(prefix="scholarhub-test-storage-"),
+)
 os.environ.setdefault("SCHOLARHUB_ENVIRONMENT", "test")
 os.environ.setdefault("SCHOLARHUB_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 

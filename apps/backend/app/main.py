@@ -32,7 +32,6 @@ from app.api import (
     modules,
     privacy,
     tenant_hosts,
-    two_factor,
     users,
     webauthn,
 )
@@ -225,7 +224,6 @@ app.include_router(metrics.router)
 # Privacy is also mounted at root so it's accessible without /api prefix.
 app.include_router(privacy.router)
 app.include_router(privacy.router, prefix="/api")
-app.include_router(two_factor.router, prefix="/api")
 app.include_router(gdpr.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")

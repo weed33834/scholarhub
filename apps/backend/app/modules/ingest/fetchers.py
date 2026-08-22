@@ -19,7 +19,7 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
-from defusedxml import ElementTree as ET
+from defusedxml import ElementTree as ET  # type: ignore[import-untyped]
 
 from app.core.config import settings
 from app.modules.ingest.schemas import IngestResource

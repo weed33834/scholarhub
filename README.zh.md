@@ -10,7 +10,7 @@
 
 投稿、审稿、发表、目录、读者与订阅,开箱即用。
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12+-3776AB.svg?logo=python&logoColor=white&style=flat-square)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=white&style=flat-square)](https://react.dev/)
@@ -19,9 +19,9 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4.svg?logo=tailwindcss&logoColor=white&style=flat-square)](https://tailwindcss.com/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker&logoColor=white&style=flat-square)](https://docs.docker.com/compose/)
 
-[![Modules](https://img.shields.io/badge/modules-10-6366F1?style=flat-square&logo=modin&logoColor=white)](#模块清单)
-[![E2E Specs](https://img.shields.io/badge/E2E_specs-56-22C55E?style=flat-square&logo=playwright&logoColor=white)](#测试)
-[![Unit Tests](https://img.shields.io/badge/unit_tests-410-10B981?style=flat-square&logo=pytest&logoColor=white)](#测试)
+[![Modules](https://img.shields.io/badge/modules-11-6366F1?style=flat-square&logo=modin&logoColor=white)](#模块清单)
+[![E2E Specs](https://img.shields.io/badge/E2E_specs-64-22C55E?style=flat-square&logo=playwright&logoColor=white)](#测试)
+[![Unit Tests](https://img.shields.io/badge/unit_tests-479-10B981?style=flat-square&logo=pytest&logoColor=white)](#测试)
 [![Mypy strict](https://img.shields.io/badge/mypy-strict-2C5AA0?style=flat-square&logo=python&logoColor=white)](#测试)
 [![Status](https://img.shields.io/badge/status-pre--alpha-F59E0B?style=flat-square)](#项目状态)
 [![Version](https://img.shields.io/badge/version-0.1.0-6B7280?style=flat-square)](VERSION)
@@ -92,6 +92,7 @@ ScholarHUB 的所有功能都围绕这三类用户设计:
 | `follows` | ✓ shipped | 作者 / 学科订阅 + 通知 fan-out |
 | `notifications` | ✓ shipped | 站内通知流、按用户隔离 |
 | `ingest` | ✓ shipped | BibTeX / RIS / CSV 批量导入 + Crossref / arXiv 元数据抓取 |
+| `doi` | ✓ shipped | 通过 DataCite API 注册与铸造 DOI（需配置后启用） |
 | `recommendations` | ✓ shipped | 基于阅读历史的个性化推荐 + 推荐理由 |
 
 ---
@@ -225,7 +226,7 @@ scholarhub/
 ├── CODE_OF_CONDUCT.md             # 行为准则
 ├── SECURITY.md                    # 安全策略
 ├── SUPPORT.md                     # 获取帮助
-├── LICENSE                        # MIT
+├── LICENSE                        # Apache-2.0
 ├── VERSION                        # 单一版本号源
 ├── apps/
 │   ├── backend/                   # FastAPI 服务(base + 模块)
@@ -327,7 +328,7 @@ npm run test
 
 ### E2E 测试
 
-9 个 spec 文件（53 个 Playwright test()）覆盖完整用户旅程,以真实浏览器点击的方式验证每条主流程:
+12 个 spec 文件（64 个 Playwright test()）覆盖完整用户旅程,以真实浏览器点击的方式验证每条主流程:
 
 ```bash
 # 启动后端(测试模式,SQLite + rate_limit 跳过)
@@ -378,7 +379,8 @@ GitHub Actions workflow 见 [`.github/workflows/ci.yml`](.github/workflows/ci.ym
 - [ ] refresh token 显式 denylist
 - [ ] WebAuthn / passkeys 作为 TOTP 2FA 替代
 - [ ] 卷期(volume / issue)的高级管理界面
-- [ ] DOI 注册与互链
+- [x] DOI 注册(DataCite,`doi` 模块;配置 `SCHOLARHUB_DATACITE_*` 后启用) — shipped
+- [ ] DOI 互链与展示
 - [ ] 全文检索(PostgreSQL FTS 或 Meilisearch)
 - [ ] 文件存储从本地切换到 S3
 - [ ] 工作流可视化(投稿 → 审稿 → 录用)
@@ -417,8 +419,8 @@ GitHub Actions workflow 见 [`.github/workflows/ci.yml`](.github/workflows/ci.ym
 
 ## License
 
-Copyright © 2026 badhope. Released under the [MIT License](LICENSE).
+Copyright © 2026 badhope. Released under the [Apache License 2.0](LICENSE).
 
-在保留版权与许可声明的前提下,你可以自由使用、复制、修改、合并、发布、分发、再授权、销售本软件的副本,商业与非商业用途皆可。
+在遵守 Apache License 2.0 条款的前提下,你可以自由使用、修改、分发本软件;详见许可证正文与 [NOTICE](NOTICE) 文件。
 
 本软件按"现状"提供,不附带任何担保。完整文本见 [LICENSE](LICENSE)。

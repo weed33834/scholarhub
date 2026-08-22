@@ -9,12 +9,14 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // router-plugin 必须先于 react 执行：先扫描 routes/ 生成 routeTree.gen.ts，再让 react 处理 JSX
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const routerPlugin = TanStackRouterVite({
   target: 'react',
   autoCodeSplitting: true,
   routesDirectory: './src/routes',
   generatedRouteTree: './src/routeTree.gen.ts',
+  // 本项目 vite 为 rolldown 分支，与 router-plugin 声明的 Plugin 类型存在版本错位，
+  // 只能以 any 中转（rolldown 与 rollup 的 PluginContextMeta 不兼容）。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }) as any
 
 export default defineConfig({

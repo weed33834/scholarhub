@@ -45,8 +45,51 @@ jobs:
 
       - name: Unit tests (pytest)
         run: uv run pytest -v --tb=short
-        # RLS 隔离测试需要 PostgreSQL，CI 默认用 SQLite in-memory；若需跑 RLS
-        # 测试请添加 postgres service 并设置 SCHOLARHUB_DATABASE_URL。
+        # RLS 隔离测试需要真实 PostgreSQL，由下方独立 rls job 门禁执行。
+
+  # ─── RLS 租户隔离测试（真实 PostgreSQL 17）─────────────────────────────────
+  # tests/test_rls_isolation.py 在非 PostgreSQL 环境下整模块跳过 —— 意味着
+  # 「双层租户隔离」这一安全特性若没有本 job，CI 里永远零覆盖。
+  rls:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: scholarhub
+          POSTGRES_PASSWORD: scholarhub
+          POSTGRES_DB: scholarhub
+          # Ephemeral CI container: skip password negotiation entirely so the
+          # fixture's dynamically-created non-superuser role can connect
+          # regardless of the image's password_encryption settings.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scholarhub"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: RLS isolation tests (PostgreSQL)
+        run: uv run pytest tests/test_rls_isolation.py -v --tb=short
+        env:
+          SCHOLARHUB_DATABASE_URL: postgresql+asyncpg://scholarhub:scholarhub@localhost:5432/scholarhub
 
   # ─── 前端：lint + typecheck + unit tests ──────────────────────────────────
   frontend:

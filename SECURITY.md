@@ -103,8 +103,8 @@ npm run lint
 npm run typecheck
 npm audit                            # npm dependency CVE scan
 
-# Repo-wide secret scan
-python scan_secrets.py
+# Repo-wide secret scan (requires gitleaks: https://gitleaks.io)
+gitleaks detect --source . --config .gitleaks.toml
 ```
 
 ## Incident Response
