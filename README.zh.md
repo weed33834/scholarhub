@@ -375,15 +375,16 @@ GitHub Actions workflow 见 [`.github/workflows/ci.yml`](.github/workflows/ci.ym
 - [x] 学科/子学科 ontology 表 — shipped
 - [x] Crossref 富集 (出版者/期刊缩写/卷/期/页/ISSN) — shipped
 - [x] 隐私页 + cookie consent banner + 保留策略 — shipped
-- [ ] 多租户模式落地(host-header → tenant 映射表)
-- [ ] refresh token 显式 denylist
-- [ ] WebAuthn / passkeys 作为 TOTP 2FA 替代
-- [ ] 卷期(volume / issue)的高级管理界面
+- [x] 多租户模式落地(host-header → tenant 映射) — shipped(`tenant_hosts` 管理 API + 中间件解析 + 缓存)
+- [x] refresh token 显式 denylist — shipped(Redis/内存可插拔,`app/core/token_denylist.py`)
+- [ ] WebAuthn / passkeys — 后端与 API 已完成,前端管理界面待做
+- [ ] 卷期(volume / issue)的高级管理界面(以真实端点替代客户端启发式)
 - [x] DOI 注册(DataCite,`doi` 模块;配置 `SCHOLARHUB_DATACITE_*` 后启用) — shipped
 - [ ] DOI 互链与展示
-- [ ] 全文检索(PostgreSQL FTS 或 Meilisearch)
-- [ ] 文件存储从本地切换到 S3
+- [x] 全文检索 — 已实现为可选 Meilisearch 集成,未配置时回退 DB ILIKE
+- [x] 文件存储本地 → S3 — shipped(`storage_backend=s3`,兼容 MinIO/R2/OSS)
 - [ ] 工作流可视化(投稿 → 审稿 → 录用)
+- [ ] i18n 第二阶段:迁移目录浏览 / 应用外壳等页面(0.2.0 已交付基础设施 + auth 集群)
 
 ---
 

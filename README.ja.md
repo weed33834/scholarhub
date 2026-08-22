@@ -375,15 +375,16 @@ CI ワークフロー: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。
 - [x] 学科/サブ学科 ontology テーブル — shipped
 - [x] Crossref リッチ化 (出版社/雑誌略称/巻/号/ページ/ISSN) — shipped
 - [x] プライバシーページ + cookie consent banner + 保持ポリシー — shipped
-- [ ] マルチテナントモードの実装(host-header → テナントマッピングテーブル)
-- [ ] refresh token の明示的 denylist
-- [ ] WebAuthn / passkeys による TOTP 2FA の代替
-- [ ] 高度な巻号管理 UI
+- [x] マルチテナントモード（host-header → テナントマッピング）— shipped（`tenant_hosts` 管理 API + ミドルウェア解決 + キャッシュ）
+- [x] refresh token の明示的 denylist — shipped（Redis/メモリ切替式、`app/core/token_denylist.py`）
+- [ ] WebAuthn / passkeys — バックエンドと API は完成、フロントエンド管理 UI は未着手
+- [ ] 高度な巻号管理 UI（クライアント側ヒューリスティックを実エンドポイントに置換）
 - [x] DOI 登録（DataCite、`doi` モジュール。`SCHOLARHUB_DATACITE_*` の設定で有効化）— shipped
 - [ ] DOI 相互リンクと表示
-- [ ] フルテキスト検索(PostgreSQL FTS または Meilisearch)
-- [ ] ファイルストレージをローカルから S3 に切替
+- [x] フルテキスト検索 — Meilisearch オプトイン統合として実装済み（未設定時は DB ILIKE にフォールバック）
+- [x] ファイルストレージの S3 対応 — shipped（`storage_backend=s3`、MinIO/R2/OSS 互換）
 - [ ] ワークフロー可視化(投稿 → 査読 → 採用)
+- [ ] i18n フェーズ 2：カタログ / アプリシェル等のページ移行（0.2.0 で基盤 + auth 群は完了）
 
 ---
 
