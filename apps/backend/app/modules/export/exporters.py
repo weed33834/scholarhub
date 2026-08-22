@@ -19,6 +19,13 @@ import re
 from collections.abc import Callable
 from typing import Any, Protocol, runtime_checkable
 
+# 序列化复用 ingest 侧同一对成熟库（pyproject 已锁定 bibtexparser 1.x /
+# rispy 0.x），保证「导入↔导出」由同一实现背书，而不是两套手写逻辑互猜。
+import bibtexparser
+import rispy
+from bibtexparser.bibdatabase import BibDatabase
+from bibtexparser.bwriter import BibTexWriter
+
 # Resource types → BibTeX entry types.
 _BIBTEX_TYPE_MAP: dict[str, str] = {
     "paper": "article",
@@ -133,86 +140,102 @@ def _citation_key(resource: Exportable, index: int) -> str:
 # --- BibTeX ---
 
 
+def _resource_to_bibtex_entry(resource: Exportable, key: str) -> dict[str, str]:
+    """Build a BibDatabase entry dict (ID + ENTRYTYPE + fields)."""
+    entry_type = _BIBTEX_TYPE_MAP.get(resource.type, "misc")
+    authors = _author_list(resource)
+    entry: dict[str, str] = {
+        "ID": key,
+        "ENTRYTYPE": entry_type,
+        "title": resource.title or "",
+        "year": str(resource.year),
+    }
+    if authors:
+        entry["author"] = " and ".join(authors)
+    if resource.venue:
+        entry["journal" if resource.type == "paper" else "booktitle"] = resource.venue
+    if resource.volume:
+        entry["volume"] = resource.volume
+    if resource.issue:
+        entry["number"] = resource.issue
+    if resource.pages:
+        entry["pages"] = resource.pages
+    keywords = _keywords(resource)
+    if keywords:
+        entry["keywords"] = ", ".join(keywords)
+    if resource.doi:
+        entry["doi"] = resource.doi
+    url = _url(resource)
+    if url:
+        entry["url"] = url
+    if resource.abstract:
+        entry["abstract"] = re.sub(r"\s+", " ", resource.abstract).strip()
+    return entry
+
+
 def to_bibtex(resources: list[Exportable]) -> str:
-    """Render resources as a BibTeX bibliography string."""
+    """Render resources as a BibTeX bibliography string (bibtexparser writer)."""
     used_keys: set[str] = set()
-    blocks: list[str] = []
+    entries: list[dict[str, str]] = []
     for i, resource in enumerate(resources):
         key = _citation_key(resource, 0)
         if key in used_keys:
             key = _citation_key(resource, i + 1)
         used_keys.add(key)
-        blocks.append(_resource_to_bibtex(resource, key))
-    return "\n\n".join(blocks)
+        entries.append(_resource_to_bibtex_entry(resource, key))
+    db = BibDatabase()
+    db.entries = entries
+    writer = BibTexWriter()
+    writer.indent = "  "
+    return str(bibtexparser.dumps(db, writer=writer)).strip()
 
 
-def _resource_to_bibtex(resource: Exportable, key: str) -> str:
-    entry_type = _BIBTEX_TYPE_MAP.get(resource.type, "misc")
-    authors = _author_list(resource)
-    fields: list[str] = [f"  title = {{{resource.title}}}"]
-    if authors:
-        fields.append(f"  author = {{{' and '.join(authors)}}}")
-    fields.append(f"  year = {{{resource.year}}}")
-    if resource.venue:
-        venue_field = "journal" if resource.type == "paper" else "booktitle"
-        fields.append(f"  {venue_field} = {{{resource.venue}}}")
-    if resource.volume:
-        fields.append(f"  volume = {{{resource.volume}}}")
-    if resource.issue:
-        fields.append(f"  number = {{{resource.issue}}}")
-    if resource.pages:
-        fields.append(f"  pages = {{{resource.pages}}}")
-    keywords = _keywords(resource)
-    if keywords:
-        fields.append(f"  keywords = {{{', '.join(keywords)}}}")
-    if resource.doi:
-        fields.append(f"  doi = {{{resource.doi}}}")
-    url = _url(resource)
-    if url:
-        fields.append(f"  url = {{{url}}}")
-    if resource.abstract:
-        abstract = re.sub(r"\s+", " ", resource.abstract).strip()
-        fields.append(f"  abstract = {{{abstract}}}")
-    return f"@{entry_type}{{{key},\n" + ",\n".join(fields) + "\n}"
+class _PlainRisWriter(rispy.RisWriter):  # type: ignore[misc]
+    """RisWriter without the per-entry ``1.``/``2.`` numbering headers."""
 
-
-# --- RIS ---
+    def set_header(self, count: int) -> str:
+        return ""
 
 
 def to_ris(resources: list[Exportable]) -> str:
-    """Render resources as an RIS tagged string."""
+    """Render resources as an RIS tagged string (rispy writer).
+
+    Entries use rispy's canonical long key names (its writer maps them to
+    tags), so exported output round-trips through ``ingest.parse_ris``
+    with the same library doing both directions.
+    """
+    writer = _PlainRisWriter()
     blocks: list[str] = []
     for resource in resources:
-        blocks.append(_resource_to_ris(resource))
+        entry: dict[str, Any] = {
+            "type_of_reference": _RIS_TYPE_MAP.get(resource.type, "GEN"),
+            "title": resource.title,
+        }
+        authors = _author_list(resource)
+        if authors:
+            entry["authors"] = authors
+        entry["year"] = str(resource.year)
+        if resource.venue:
+            entry["journal_name"] = resource.venue
+        if resource.volume:
+            entry["volume"] = resource.volume
+        if resource.issue:
+            entry["number"] = resource.issue
+        if resource.pages:
+            entry["start_page"] = resource.pages
+        keywords = _keywords(resource)
+        if keywords:
+            entry["keywords"] = keywords
+        if resource.doi:
+            entry["doi"] = resource.doi
+        url = _url(resource)
+        if url:
+            entry["urls"] = [url]
+        if resource.abstract:
+            entry["abstract"] = re.sub(r"\s+", " ", resource.abstract).strip()
+        rendered = str(writer.formats([entry])).rstrip("\n")
+        blocks.append(rendered)
     return "\n\n".join(blocks)
-
-
-def _resource_to_ris(resource: Exportable) -> str:
-    lines: list[str] = [f"TY  - {_RIS_TYPE_MAP.get(resource.type, 'GEN')}"]
-    lines.append(f"TI  - {resource.title}")
-    for author in _author_list(resource):
-        lines.append(f"AU  - {author}")
-    lines.append(f"PY  - {resource.year}")
-    if resource.venue:
-        lines.append(f"JO  - {resource.venue}")
-    if resource.volume:
-        lines.append(f"VL  - {resource.volume}")
-    if resource.issue:
-        lines.append(f"IS  - {resource.issue}")
-    if resource.pages:
-        lines.append(f"SP  - {resource.pages}")
-    for keyword in _keywords(resource):
-        lines.append(f"KW  - {keyword}")
-    if resource.doi:
-        lines.append(f"DO  - {resource.doi}")
-    url = _url(resource)
-    if url:
-        lines.append(f"UR  - {url}")
-    if resource.abstract:
-        abstract = re.sub(r"\s+", " ", resource.abstract).strip()
-        lines.append(f"AB  - {abstract}")
-    lines.append("ER  -")
-    return "\n".join(lines)
 
 
 # --- CSV ---
