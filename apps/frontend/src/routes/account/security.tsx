@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { AxiosError } from 'axios'
 import { Copy, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import {
   useChangePassword,
   useTwoFactorDisable,
@@ -34,11 +33,10 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { requireAuth } from '@/lib/auth-guard'
 
 export const Route = createFileRoute('/account/security')({
-  beforeLoad: () => {
-    if (!getAuthState().token) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: AccountSecurityPage,
 })
 

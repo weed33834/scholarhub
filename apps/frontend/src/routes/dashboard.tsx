@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   BookOpen,
   Lightbulb,
@@ -7,7 +7,7 @@ import {
   ScrollText,
   type LucideIcon,
 } from 'lucide-react'
-import { getAuthState } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth-guard'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import {
   useCatalogStats,
@@ -25,11 +25,7 @@ import { EmptyState, ErrorState, Loading } from '@/components/common/state'
 import { StatTile } from '@/components/mobile/StatTile'
 
 export const Route = createFileRoute('/dashboard')({
-  beforeLoad: () => {
-    if (!getAuthState().isAuthenticated) {
-      throw redirect({ to: '/login', search: { redirect: '/dashboard' } })
-    }
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: DashboardPage,
 })
 

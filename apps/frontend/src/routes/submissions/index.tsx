@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import {
   createFileRoute,
   Link,
-  redirect,
   useNavigate,
   useRouterState,
   useSearch,
@@ -19,7 +18,6 @@ import {
   Upload,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import {
   downloadSubmissionFile,
   useCreateSubmission,
@@ -73,6 +71,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { requireAuth } from '@/lib/auth-guard'
 
 // 注册 router state 的 preset 字段：ingest 页通过 navigate state 传预填数据，
 // 借助 HistoryState 接口的声明合并让两端都类型安全
@@ -83,9 +82,7 @@ declare module '@tanstack/history' {
 }
 
 export const Route = createFileRoute('/submissions/')({
-  beforeLoad: () => {
-    if (!getAuthState().isAuthenticated) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: SubmissionsPage,
 })
 

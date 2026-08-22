@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { Bookmark, Trash2, UserMinus } from 'lucide-react'
 import { toast } from 'sonner'
-import { getAuthState } from '@/lib/auth'
 import {
   useMyFollowedAuthors,
   useMySubscribedDisciplines,
@@ -17,11 +16,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { requireAuth } from '@/lib/auth-guard'
 
 export const Route = createFileRoute('/follows/')({
-  beforeLoad: () => {
-    if (!getAuthState().isAuthenticated) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ location }) => requireAuth(location),
   component: FollowsPage,
 })
 
