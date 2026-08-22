@@ -4,7 +4,11 @@ import { cn } from '@/lib/utils'
 // 全屏骨架占位
 export function Loading({ className }: { className?: string }) {
   return (
-    <div className={cn('flex items-center justify-center py-12 text-muted-foreground', className)}>
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn('flex items-center justify-center py-12 text-muted-foreground', className)}
+    >
       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       <span className="text-sm">加载中…</span>
     </div>
