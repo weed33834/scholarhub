@@ -58,8 +58,8 @@ export const Route = createFileRoute('/admin/users')({
 function AdminUsersPage() {
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
-  // 300ms 防抖后走服务端搜索（后端 q 参数对 username/email 做全表匹配，
-  // 旧方案只在「当前页 50 条」里过滤，翻页即丢结果）。搜索词变化时回到第 1 页。
+  // 服务端搜索：q 直接进 queryKey（后端对 username/email 做全表匹配）。
+  // 搜索词变化时由下方 effect 回到第 1 页。
   const [debouncedQuery, setDebouncedQuery] = useState('')
   useEffect(() => {
     const timer = setTimeout(() => {

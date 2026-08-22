@@ -866,6 +866,9 @@ export function useFetchIngest() {
 export function useAdminUsers(limit = 50, offset = 0, q = '') {
   return useQuery<UserResponse[]>({
     queryKey: keys.admin.users(limit, offset, q),
+    // q 变化切 key 时保留旧列表：避免整表闪 Loading 导致行内下拉菜单
+    // 被卸载重建（E2E 中表现为菜单项永远 "not stable"）。
+    placeholderData: (prev) => prev,
     queryFn: async () =>
       (
         await api.get<UserResponse[]>('/admin/users', {
