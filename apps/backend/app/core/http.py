@@ -24,10 +24,10 @@ compatibility.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import httpx
-from defusedxml import ElementTree as ET
+from defusedxml import ElementTree as ET  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ async def _request(
     *,
     headers: dict[str, str] | None = None,
     json: Any = None,
-    timeout: float = DEFAULT_TIMEOUT,
+    timeout: float = DEFAULT_TIMEOUT,  # noqa: ASYNC109 - passed to httpx, not asyncio.timeout
 ) -> httpx.Response:
     """HTTP request with transport-error translation.
 
@@ -68,7 +68,7 @@ async def _get_response(
     url: str,
     *,
     headers: dict[str, str] | None = None,
-    timeout: float = DEFAULT_TIMEOUT,
+    timeout: float = DEFAULT_TIMEOUT,  # noqa: ASYNC109 - passed to httpx, not asyncio.timeout
 ) -> httpx.Response:
     """GET convenience wrapper over ``_request``."""
     return await _request("GET", url, headers=headers, timeout=timeout)
@@ -78,7 +78,7 @@ async def fetch_json(
     url: str,
     *,
     headers: dict[str, str] | None = None,
-    timeout: float = DEFAULT_TIMEOUT,
+    timeout: float = DEFAULT_TIMEOUT,  # noqa: ASYNC109 - passed to httpx, not asyncio.timeout
 ) -> dict[str, Any]:
     """GET ``url`` and parse the JSON response body.
 
@@ -91,7 +91,7 @@ async def fetch_json(
     if resp.status_code >= 400:
         raise UpstreamError(f"HTTP {resp.status_code} for {url}")
     try:
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
     except ValueError as exc:
         raise UpstreamError(f"Non-JSON response: {exc}") from exc
 
@@ -100,7 +100,7 @@ async def fetch_xml(
     url: str,
     *,
     headers: dict[str, str] | None = None,
-    timeout: float = DEFAULT_TIMEOUT,
+    timeout: float = DEFAULT_TIMEOUT,  # noqa: ASYNC109 - passed to httpx, not asyncio.timeout
 ) -> ET.Element:
     """GET ``url`` and parse the XML response body.
 

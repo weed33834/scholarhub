@@ -21,14 +21,16 @@ from urllib.parse import quote
 
 from defusedxml import ElementTree as ET  # type: ignore[import-untyped]
 
+from app.core.config import settings
 from app.core.http import (
     DEFAULT_TIMEOUT as HTTP_TIMEOUT,
+)
+from app.core.http import (
     ResourceNotFoundError,
     UpstreamError,
     fetch_json,
     fetch_xml,
 )
-from app.core.config import settings
 from app.modules.ingest.schemas import IngestResource
 
 # Crossref politely asks callers to identify themselves with a mailto.

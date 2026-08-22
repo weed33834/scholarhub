@@ -95,6 +95,9 @@ def _stub_httpx_response(monkeypatch: pytest.MonkeyPatch, response: Any) -> None
         async def __aexit__(self, *args: object) -> bool:
             return False
 
+        async def request(self, method: str, url: str, **kwargs: object) -> Any:
+            return response
+
         async def get(self, url: str, headers: Any = None) -> Any:
             return response
 
@@ -116,6 +119,9 @@ def _stub_httpx_exception(monkeypatch: pytest.MonkeyPatch, exc: BaseException) -
 
         async def __aexit__(self, *args: object) -> bool:
             return False
+
+        async def request(self, method: str, url: str, **kwargs: object) -> Any:
+            raise exc
 
         async def get(self, url: str, headers: Any = None) -> Any:
             raise exc
