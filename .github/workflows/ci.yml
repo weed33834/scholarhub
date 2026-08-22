@@ -155,3 +155,8 @@ jobs:
         env:
           # Playwright 的 webServer 配置会自启后端 + 前端。
           E2E_SPAWN_SERVER: "1"
+
+      - name: Run E2E tests (mobile viewport)
+        run: npx playwright test --project=mobile
+        env:
+          E2E_SPAWN_SERVER: "1"
