@@ -28,6 +28,39 @@ async def test_list_users_includes_roles_field(
         assert isinstance(u["roles"], list)
 
 
+async def test_list_users_search_matches_username_and_email(
+    client: AsyncClient, admin_user: dict, test_user: dict
+) -> None:
+    """q 参数按 username / email 子串（大小写不敏感）全表过滤。"""
+    headers = auth_headers(admin_user)
+
+    hit_by_username = await client.get(
+        "/api/admin/users", params={"q": "testuser"}, headers=headers
+    )
+    assert hit_by_username.status_code == 200
+    usernames = {u["username"] for u in hit_by_username.json()}
+    assert "testuser" in usernames
+
+    hit_by_email = await client.get(
+        "/api/admin/users", params={"q": "EXAMPLE.COM"}, headers=headers
+    )
+    assert hit_by_email.status_code == 200
+    assert any(u["username"] == "testuser" for u in hit_by_email.json())
+
+    # LIKE 通配符必须按字面量处理："%" 不应匹配所有用户
+    literal_percent = await client.get(
+        "/api/admin/users", params={"q": "%%"}, headers=headers
+    )
+    assert literal_percent.status_code == 200
+    assert all("%" not in u["email"] and "%" not in u["username"] for u in literal_percent.json())
+
+    miss = await client.get(
+        "/api/admin/users", params={"q": "no-such-user-xyz"}, headers=headers
+    )
+    assert miss.status_code == 200
+    assert miss.json() == []
+
+
 async def test_assign_reviewer_role(client: AsyncClient, admin_user: dict, test_user: dict) -> None:
     """admin 给普通用户分配 reviewer 角色；返回的 roles 列表应包含 'reviewer'。"""
     user_id = int(test_user["user_id"])

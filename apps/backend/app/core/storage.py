@@ -20,11 +20,18 @@ from __future__ import annotations
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class SupportsRead(Protocol):
+    """Minimal file-like interface accepted by ``Storage.save``."""
+
+    def read(self, size: int = -1) -> bytes: ...
 
 
 class StorageError(RuntimeError):
@@ -36,7 +43,9 @@ class Storage(Protocol):
 
     backend: str
 
-    async def save(self, key: str, data: bytes, *, content_type: str | None = None) -> None: ...
+    async def save(
+        self, key: str, data: bytes | SupportsRead, *, content_type: str | None = None
+    ) -> None: ...
 
     async def load(self, key: str) -> bytes: ...
 
@@ -69,10 +78,32 @@ class LocalStorage:
     def _abs(self, key: str) -> Path:
         return self._root / _validate_key(key)
 
-    async def save(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
+    def abs_path(self, key: str) -> Path:
+        """Public absolute path (FileResponse streaming for downloads)."""
+        return self._abs(key)
+
+    async def save(
+        self, key: str, data: bytes | SupportsRead, *, content_type: str | None = None
+    ) -> None:
         dest = self._abs(key)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(data)
+        if isinstance(data, (bytes, bytearray)):
+            dest.write_bytes(data)
+            return
+
+        import anyio
+
+        # File-like: copy in bounded chunks on a worker thread so the event
+        # loop is never blocked by disk I/O.
+        def _copy_stream_sync() -> None:
+            with open(dest, "wb") as fh:
+                while True:
+                    chunk = data.read(256 * 1024)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+
+        await anyio.to_thread.run_sync(_copy_stream_sync)
 
     async def load(self, key: str) -> bytes:
         path = self._abs(key)
@@ -134,11 +165,15 @@ class S3Storage:
 
         return await anyio.to_thread.run_sync(lambda: fn(*args, **kwargs))
 
-    async def save(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
+    async def save(
+        self, key: str, data: bytes | SupportsRead, *, content_type: str | None = None
+    ) -> None:
         _validate_key(key)
         extra: dict[str, Any] = {}
         if content_type:
             extra["ContentType"] = content_type
+        # boto3 put_object accepts bytes or a seekable file-like Body; the
+        # spooled temp file from the upload route keeps memory bounded.
         await self._run(
             self._client.put_object, Bucket=self._bucket, Key=key, Body=data, **extra
         )

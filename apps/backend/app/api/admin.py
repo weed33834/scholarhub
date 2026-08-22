@@ -120,18 +120,25 @@ async def _user_with_roles(db: AsyncSession, user: User) -> UserResponse:
 async def list_users(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    q: str | None = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> list[UserResponse]:
-    """List all users in the current tenant, including their role names."""
+    """List users in the current tenant (newest first), including role names.
+
+    ``q`` performs a case-insensitive substring match on username OR email.
+    LIKE wildcards in ``q`` are escaped so a search for "50%" stays literal.
+    """
     tenant_id = require_tenant_id()
-    result = await db.execute(
-        select(User)
-        .where(User.tenant_id == tenant_id)
-        .order_by(User.id.desc())
-        .limit(limit)
-        .offset(offset)
-    )
+    stmt = select(User).where(User.tenant_id == tenant_id)
+    if q:
+        escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        stmt = stmt.where(
+            User.username.ilike(pattern, escape="\\")
+            | User.email.ilike(pattern, escape="\\")
+        )
+    result = await db.execute(stmt.order_by(User.id.desc()).limit(limit).offset(offset))
     users = result.scalars().all()
     return [await _user_with_roles(db, u) for u in users]
 

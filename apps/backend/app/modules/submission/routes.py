@@ -1134,13 +1134,15 @@ async def upload_submission_file(
     - submission 必须处于 pending / under_review / major_revision / minor_revision
       （under_review 允许是为了让编辑要求作者替换稿件时仍能上传）
     - accepted / rejected 终态下不可上传
-    - MIME 必须在白名单内
+    - MIME 必须在白名单内，且内容魔数与声明类型一致（防伪装上传）
     - 大小 ≤ 50 MB
     - 文件名经过 path 安全检查（防 ../ 穿越）
     """
     import os
+    import tempfile
     from uuid import uuid4
 
+    from app.core.filescan import SNIFF_LEN, content_matches_declared
     from app.core.storage import get_storage
 
     entry = await _get_or_404(db, submission_id)
@@ -1165,29 +1167,50 @@ async def upload_submission_file(
             detail=f"Unsupported file type: {file.content_type}",
         )
 
-    # 流式读 + 大小校验，避免一次性 OOM
-    contents = b""
-    while True:
-        chunk = await file.read(64 * 1024)
-        if not chunk:
-            break
-        contents += chunk
-        if len(contents) > _MAX_UPLOAD_BYTES:
+    # 流式写入磁盘回退的内存临时文件：8 MB 以内驻留内存，超出自动落盘，
+    # 内存占用有界（此前是 contents += chunk 全量攒在 RAM）。
+    spool = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024)
+    try:
+        total = 0
+        while True:
+            chunk = await file.read(256 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > _MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File exceeds {_MAX_UPLOAD_BYTES} bytes",
+                )
+            spool.write(chunk)
+
+        # 内容嗅探：声明的 MIME 必须与文件头真实格式一致，否则拒绝。
+        # （Content-Type 由客户端自报，不可信。）
+        spool.seek(0)
+        head = spool.read(SNIFF_LEN)
+        if not content_matches_declared(head, file.content_type):
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File exceeds {_MAX_UPLOAD_BYTES} bytes",
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=(
+                    "File content does not match its declared type "
+                    f"({file.content_type}); supported: PDF, DOCX/ZIP, "
+                    "DOC, PostScript, plain text"
+                ),
             )
 
-    # 存储 key：{tenant_id}/{submission_id}/{uuid}{ext}
-    # 用 uuid 防文件名碰撞 + 路径穿越；本地/S3 后端共用同一 key 形状，
-    # 切换后端无需迁移数据库。
-    original_filename = file.filename or "upload"
-    ext = os.path.splitext(original_filename)[1]
-    if ext and len(ext) > 20:
-        ext = ext[:20]
-    safe_name = f"{uuid4().hex}{ext}"
-    rel_path = f"{entry.tenant_id}/{entry.id}/{safe_name}"
-    await get_storage().save(rel_path, contents, content_type=file.content_type)
+        # 存储 key：{tenant_id}/{submission_id}/{uuid}{ext}
+        # 用 uuid 防文件名碰撞 + 路径穿越；本地/S3 后端共用同一 key 形状，
+        # 切换后端无需迁移数据库。
+        original_filename = file.filename or "upload"
+        ext = os.path.splitext(original_filename)[1]
+        if ext and len(ext) > 20:
+            ext = ext[:20]
+        safe_name = f"{uuid4().hex}{ext}"
+        rel_path = f"{entry.tenant_id}/{entry.id}/{safe_name}"
+        spool.seek(0)
+        await get_storage().save(rel_path, spool, content_type=file.content_type)
+    finally:
+        spool.close()
     entry.file_path = rel_path
     await db.commit()
     await db.refresh(entry)
@@ -1215,10 +1238,10 @@ async def download_submission_file(
     """
     import mimetypes
 
-    from fastapi.responses import RedirectResponse, StreamingResponse
+    from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 
     from app.api.deps import ROLE_EDITOR, user_has_role
-    from app.core.storage import get_storage
+    from app.core.storage import LocalStorage, get_storage
 
     entry = await _get_or_404(db, submission_id)
     if not entry.file_path:
@@ -1252,6 +1275,24 @@ async def download_submission_file(
     if url:
         return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
 
+    filename = entry.file_path.rsplit("/", 1)[-1]
+    media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+
+    # 本地后端：FileResponse 按块流式发送（支持 Range/ETag），不再把整个
+    # 文件读进内存。其余后端保持服务端缓冲回退。
+    if isinstance(storage, LocalStorage):
+        path = storage.abs_path(entry.file_path)
+        if not path.is_file():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Stored file is missing",
+            )
+        return FileResponse(
+            path,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     try:
         data = await storage.load(entry.file_path)
     except FileNotFoundError as exc:
@@ -1260,8 +1301,6 @@ async def download_submission_file(
             detail="Stored file is missing",
         ) from exc
 
-    filename = entry.file_path.rsplit("/", 1)[-1]
-    media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     return StreamingResponse(
         iter((data,)),
         media_type=media_type,

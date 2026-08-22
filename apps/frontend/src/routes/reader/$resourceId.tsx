@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EmptyState, ErrorState, Loading } from '@/components/common/state'
 import { requireAuth } from '@/lib/auth-guard'
+import { useAuthStore } from '@/lib/auth'
 
 // Restrict reader iframe to https: scheme so data:/blob:/javascript:
 // URLs cannot execute content inside the PDF viewer frame.
@@ -47,8 +48,11 @@ function ReaderPage() {
   const [page, setPage] = useState(1)
   const [progressPercent, setProgressPercent] = useState(0)
   const [completed, setCompleted] = useState(false)
-  // 本地累加器：仅跟踪本次会话新增的秒数，flush 后清零
-  const [localDuration, setLocalDuration] = useState(0)
+  // 本地累加器：仅跟踪本次会话新增的秒数，flush 后清零。
+  // 每秒只在 ref 上 +1（不触发渲染）；「已读分钟数」每 15s 才同步一次
+  // 到 state，把整页重渲染频率从 60 次/分钟降到 4 次/分钟。
+  const durationRef = useRef(0)
+  const [displayedDuration, setDisplayedDuration] = useState(0)
   const [removeOpen, setRemoveOpen] = useState(false)
   const isMobile = useIsMobile()
 
@@ -85,14 +89,14 @@ function ReaderPage() {
   }
 
   // 用 ref 持有最新值，让 setInterval 回调读取时不被闭包冻结
-  const stateRef = useRef({ page, progressPercent, completed, localDuration })
+  const stateRef = useRef({ page, progressPercent, completed })
 
   const flush = async () => {
     // 首次 mount 未同步完成前不 flush，避免 StrictMode 双挂载时
     // 用初始值覆盖服务端的真实进度。
     if (!hasSyncedRef.current) return
     const s = stateRef.current
-    // 即使 localDuration=0 也可能 page/progress/completed 已变更，
+    // 即使 duration=0 也可能 page/progress/completed 已变更，
     // 所以无条件上报（duration=0 后端 no-op）。
     try {
       await updateMut.mutateAsync({
@@ -100,33 +104,76 @@ function ReaderPage() {
         body: {
           page: s.page,
           progress_percent: s.progressPercent,
-          duration_sec: s.localDuration,
+          duration_sec: durationRef.current,
           completed: s.completed,
         },
       })
-      setLocalDuration(0)
+      durationRef.current = 0
     } catch {
       // flush 失败静默，下个周期会重试
     }
   }
 
+  // pagehide / 关标签页兜底：axios 在 unload 期间不可靠，用 keepalive
+  // fetch 直接发送（浏览器保证尝试完成），Bearer 头从 store 快照取。
+  const flushKeepalive = () => {
+    if (!hasSyncedRef.current) return
+    const { token } = useAuthStore.getState()
+    if (!token) return
+    const s = stateRef.current
+    try {
+      void fetch(`/api/reader/history/${id}/progress`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          page: s.page,
+          progress_percent: s.progressPercent,
+          duration_sec: durationRef.current,
+          completed: s.completed,
+        }),
+        keepalive: true,
+      })
+      durationRef.current = 0
+    } catch {
+      // 尽力而为：失败则丢失本段会话时长（≤30s）
+    }
+  }
+
   const flushRef = useRef(flush)
+  const flushKeepaliveRef = useRef(flushKeepalive)
 
   // 在 effect 中同步 ref，避免 render 阶段直接修改 ref
   useEffect(() => {
-    stateRef.current = { page, progressPercent, completed, localDuration }
+    stateRef.current = { page, progressPercent, completed }
     flushRef.current = flush
+    flushKeepaliveRef.current = flushKeepalive
   })
   useEffect(() => {
     const ticker = setInterval(() => {
-      setLocalDuration((s) => s + 1)
+      durationRef.current += 1
     }, 1000)
+    // UI 粗粒度同步：已读分钟数每 15s 刷新一次即可（展示按分钟取整）
+    const displaySync = setInterval(() => {
+      setDisplayedDuration(durationRef.current)
+    }, 15_000)
     const flusher = setInterval(() => {
       void flushRef.current()
     }, 30_000)
+    const onPageHide = () => flushKeepaliveRef.current()
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') void flushRef.current()
+    }
+    window.addEventListener('pagehide', onPageHide)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       clearInterval(ticker)
+      clearInterval(displaySync)
       clearInterval(flusher)
+      window.removeEventListener('pagehide', onPageHide)
+      document.removeEventListener('visibilitychange', onVisibility)
       // unmount 时立即上报最后一次累积的进度，避免丢失最多 29s
       void flushRef.current()
     }
@@ -151,11 +198,12 @@ function ReaderPage() {
         body: {
           page: s.page,
           progress_percent: s.progressPercent,
-          duration_sec: s.localDuration,
+          duration_sec: durationRef.current,
           completed: s.completed,
         },
       })
-      setLocalDuration(0)
+      durationRef.current = 0
+      setDisplayedDuration(0)
       // 手动 PUT 成功后，把 hasSyncedRef 设为 true：后续 unmount 时的 flush
       // 可以正常工作（不会再 early-return）。如果 useEffect 在 query 完成
       // 后已经设过，这里是无害的赋值。
@@ -181,7 +229,7 @@ function ReaderPage() {
     return <ErrorState message="加载资源失败" onRetry={() => refetch()} />
   }
 
-  const totalDuration = (progress.data?.duration_sec ?? 0) + localDuration
+  const totalDuration = (progress.data?.duration_sec ?? 0) + displayedDuration
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">

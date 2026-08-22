@@ -104,7 +104,8 @@ export const keys = {
     me: (limit = 10) => ['recommendations', 'me', limit] as const,
   },
   admin: {
-    users: (limit = 50, offset = 0) => ['admin', 'users', limit, offset] as const,
+    users: (limit = 50, offset = 0, q = '') =>
+      ['admin', 'users', limit, offset, q] as const,
     audit: (limit = 50, offset = 0) => ['admin', 'audit', limit, offset] as const,
     reviewMode: () => ['admin', 'review-mode'] as const,
     volumes: () => ['admin', 'volumes'] as const,
@@ -862,11 +863,18 @@ export function useFetchIngest() {
 }
 
 // --- Admin ---
-export function useAdminUsers(limit = 50, offset = 0) {
+export function useAdminUsers(limit = 50, offset = 0, q = '') {
   return useQuery<UserResponse[]>({
-    queryKey: keys.admin.users(limit, offset),
+    queryKey: keys.admin.users(limit, offset, q),
+    // q 变化切 key 时保留旧列表：避免整表闪 Loading 导致行内下拉菜单
+    // 被卸载重建（E2E 中表现为菜单项永远 "not stable"）。
+    placeholderData: (prev) => prev,
     queryFn: async () =>
-      (await api.get<UserResponse[]>('/admin/users', { params: { limit, offset } })).data,
+      (
+        await api.get<UserResponse[]>('/admin/users', {
+          params: { limit, offset, q: q || undefined },
+        })
+      ).data,
   })
 }
 
