@@ -63,6 +63,10 @@ jobs:
           POSTGRES_USER: scholarhub
           POSTGRES_PASSWORD: scholarhub
           POSTGRES_DB: scholarhub
+          # Ephemeral CI container: skip password negotiation entirely so the
+          # fixture's dynamically-created non-superuser role can connect
+          # regardless of the image's password_encryption settings.
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-

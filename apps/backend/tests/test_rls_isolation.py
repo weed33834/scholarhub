@@ -1,4 +1,4 @@
-"""RLS isolation tests — must run against real PostgreSQL.
+﻿"""RLS isolation tests — must run against real PostgreSQL.
 
 The main test suite uses SQLite in-memory (which has no Row Level
 Security), so ScholarHUB's two-layer isolation claim is verified only
@@ -47,6 +47,7 @@ import os
 import uuid
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -87,7 +88,7 @@ def _app_url() -> str:
     return str(make_url(DB_URL).set(username=_APP_ROLE, password=_APP_PASSWORD))
 
 
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(loop_scope="module", scope="module")
 async def pg_engine():
     """Real PostgreSQL engine bound to a NON-superuser role.
 
@@ -118,6 +119,24 @@ async def pg_engine():
         await conn.execute(text(f"GRANT USAGE, CREATE ON SCHEMA public TO {_APP_ROLE}"))
     await admin_engine.dispose()
 
+    # Sanity check: fail loudly (with role state) instead of a cryptic
+    # "password authentication failed" if bootstrap did not stick.
+    probe = create_async_engine(DB_URL, isolation_level="AUTOCOMMIT")
+    async with probe.connect() as conn:
+        row = (
+            await conn.execute(
+                text(
+                    "SELECT rolname, rolcanlogin, rolsuper FROM pg_roles "
+                    f"WHERE rolname = '{_APP_ROLE}'"
+                )
+            )
+        ).first()
+    await probe.dispose()
+    assert row is not None, f"bootstrap failed: role {_APP_ROLE!r} was not created"
+    assert row.rolcanlogin and not row.rolsuper, (
+        f"role {_APP_ROLE!r} has wrong flags: login={row.rolcanlogin} super={row.rolsuper}"
+    )
+
     engine = create_async_engine(_app_url(), echo=False)
     async with engine.begin() as conn:
         # Fresh schema owned by the non-superuser app role.
@@ -144,15 +163,15 @@ async def _seed_two_tenants(session: AsyncSession) -> tuple[uuid.UUID, uuid.UUID
     tag = uuid.uuid4().hex[:8]
     await session.execute(
         text(
-            "INSERT INTO tenants (id, slug, name, is_active, created_at, updated_at) "
-            "VALUES (:id, :slug, :name, true, now(), now())"
+            "INSERT INTO tenants (id, slug, name, tenant_type, is_active, created_at, updated_at) "
+            "VALUES (:id, :slug, :name, 'journal', true, now(), now())"
         ),
         {"id": tenant_a, "slug": f"tenant-a-{tag}", "name": "Tenant A"},
     )
     await session.execute(
         text(
-            "INSERT INTO tenants (id, slug, name, is_active, created_at, updated_at) "
-            "VALUES (:id, :slug, :name, true, now(), now())"
+            "INSERT INTO tenants (id, slug, name, tenant_type, is_active, created_at, updated_at) "
+            "VALUES (:id, :slug, :name, 'journal', true, now(), now())"
         ),
         {"id": tenant_b, "slug": f"tenant-b-{tag}", "name": "Tenant B"},
     )
@@ -179,10 +198,12 @@ async def _seed_resources(session: AsyncSession, tenant_a: uuid.UUID, tenant_b: 
             await session.execute(
                 text(
                     "INSERT INTO resources "
-                    "(tenant_id, doi, title, type, year, discipline, subdiscipline, "
-                    " publisher, external_url, created_at, updated_at) "
-                    "VALUES (:tid, :doi, :title, 'article', 2024, 'cs', 'ml', "
-                    " 'pub', NULL, now(), now())"
+                    "(tenant_id, type, title, authors, year, discipline, subdiscipline, "
+                    " tags, abstract, preview, doi, publisher, external_url, "
+                    " language, publication_status, created_at, updated_at) "
+                    "VALUES (:tid, 'article', :title, '[\"A. Author\"]'::jsonb, 2024, "
+                    " 'cs', 'ml', '[]'::jsonb, '', '', :doi, 'pub', NULL, "
+                    " 'en', 'published', now(), now())"
                 ),
                 {
                     "tid": tid,
@@ -193,7 +214,7 @@ async def _seed_resources(session: AsyncSession, tenant_a: uuid.UUID, tenant_b: 
     await session.commit()
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_experiment_a_own_tenant_returns_all_rows(pg_engine):
     """Experiment A: user A queries own resources with RLS enabled.
 
@@ -218,7 +239,7 @@ async def test_experiment_a_own_tenant_returns_all_rows(pg_engine):
         assert count == 5, f"expected 5 own-tenant rows, got {count}"
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_experiment_b_rls_catches_cross_tenant_leak(pg_engine):
     """Experiment B: deliberately flawed filter + RLS enabled → 0 leak.
 
@@ -250,7 +271,7 @@ async def test_experiment_b_rls_catches_cross_tenant_leak(pg_engine):
         )
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_experiment_c_disabling_rls_causes_leak(pg_engine):
     """Experiment C: same flawed filter + RLS disabled → leak confirmed.
 
@@ -285,7 +306,7 @@ async def test_experiment_c_disabling_rls_causes_leak(pg_engine):
         await session.commit()
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_rls_default_deny_when_no_context_set(pg_engine):
     """Default-deny: when no app.current_tenant_id is set, RLS returns 0 rows.
 
