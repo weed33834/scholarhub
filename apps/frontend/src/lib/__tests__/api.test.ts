@@ -1,165 +1,185 @@
-import { describe, it, expect } from 'vitest'
-import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+/**
+ * API client 行为测试 —— 基于真实 axios 实例 + 自定义 adapter。
+ *
+ * 旧的实现是「mock 掉 axios 再断言 mock 被调用」的同义反复，对最关键的
+ * 401 单飞刷新（single-flight refresh）逻辑零覆盖。这里改为安装一个
+ * 可编程的假 adapter（实例级拦截业务请求、全局级拦截 /auth/refresh），
+ * 直接验证端到端行为：刷新一次、并发共享、失败登出、防循环、CSRF 头。
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import axios, { AxiosError, type AxiosAdapter, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 
-// 使用 vi.hoisted 确保 mock 在模块加载前就绪
-const { mockCreate, mockRequestUse, mockResponseUse } = vi.hoisted(() => {
-  const mockRequestUse = vi.fn()
-  const mockResponseUse = vi.fn()
-  const mockCreate = vi.fn<() => object>(() => ({
-    interceptors: {
-      request: { use: mockRequestUse },
-      response: { use: mockResponseUse },
-    },
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    patch: vi.fn(),
-    delete: vi.fn(),
-  }))
-  return { mockCreate, mockRequestUse, mockResponseUse }
+import { api } from '@/lib/api'
+import { useAuthStore } from '@/lib/auth'
+
+interface CallRecord {
+  url: string
+  method: string
+  authorization?: string
+  csrfToken?: string
+}
+
+let calls: CallRecord[]
+let refreshCallCount: number
+/** 业务请求（走 api 实例）的可编程响应脚本 */
+let businessHandler: (cfg: InternalAxiosRequestConfig) => Promise<AxiosResponse>
+/** 刷新请求（走全局 axios）的行为脚本 */
+let refreshBehavior: 'ok' | 'fail'
+
+function makeResponse(cfg: InternalAxiosRequestConfig, status: number, data: unknown): AxiosResponse {
+  return {
+    data,
+    status,
+    statusText: String(status),
+    headers: {},
+    config: cfg,
+  } as AxiosResponse
+}
+
+function make401(cfg: InternalAxiosRequestConfig): AxiosError {
+  return new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', cfg, {}, makeResponse(cfg, 401, { detail: 'expired' }))
+}
+
+const fakeBusinessAdapter: AxiosAdapter = async (rawCfg) => {
+  const cfg = rawCfg as InternalAxiosRequestConfig
+  const headers = cfg.headers as Record<string, string | undefined>
+  calls.push({
+    url: cfg.url ?? '',
+    method: (cfg.method ?? 'get').toLowerCase(),
+    authorization: headers?.Authorization,
+    csrfToken: headers?.['X-CSRF-Token'],
+  })
+  return businessHandler(cfg)
+}
+
+const fakeGlobalAdapter: AxiosAdapter = async (rawCfg) => {
+  const cfg = rawCfg as InternalAxiosRequestConfig
+  if ((cfg.url ?? '').includes('/auth/refresh')) {
+    refreshCallCount += 1
+    if (refreshBehavior === 'fail') throw make401(cfg)
+    // 刷新成功：签发新 token 并写回 store（与真实后端契约一致）
+    useAuthStore.getState().setAuth('refreshed-token', {
+      id: 1,
+      username: 'alice',
+      is_admin: false,
+    })
+    return makeResponse(cfg, 200, {
+      access_token: 'refreshed-token',
+      user_id: 1,
+      username: 'alice',
+      is_admin: false,
+    })
+  }
+  throw make401(cfg)
+}
+
+let originalInstanceAdapter: unknown
+let originalGlobalAdapter: unknown
+
+beforeEach(() => {
+  vi.restoreAllMocks()
+  calls = []
+  refreshCallCount = 0
+  refreshBehavior = 'ok'
+  businessHandler = async () => makeResponse({} as InternalAxiosRequestConfig, 200, {})
+  useAuthStore.setState({ token: 'stale-token', user: { id: 1, username: 'alice', is_admin: false } })
+
+  originalInstanceAdapter = api.defaults.adapter
+  originalGlobalAdapter = axios.defaults.adapter
+  api.defaults.adapter = fakeBusinessAdapter
+  axios.defaults.adapter = fakeGlobalAdapter
 })
 
-vi.mock('axios', () => ({
-  default: {
-    create: mockCreate,
-    post: vi.fn(),
-  },
-  AxiosError: class extends Error {
-    code?: string
-    response?: { data: unknown; status: number; statusText: string }
-    config?: unknown
-    constructor(message: string, code?: string, config?: unknown, _req?: unknown, response?: unknown) {
-      super(message)
-      this.code = code
-      this.config = config
-      this.response = response as { data: unknown; status: number; statusText: string }
-    }
-    static ERR_BAD_REQUEST = 'ERR_BAD_REQUEST'
-  },
-}))
-
-vi.mock('@/lib/auth', () => ({
-  useAuthStore: {
-    getState: vi.fn<() => { token: string | null; user: { id: number; username: string; is_admin: boolean } | null }>(() => ({ token: null, user: null })),
-  },
-}))
-
-// 动态导入 api 模块，触发 axios.create() 调用
-const { api } = await import('@/lib/api')
-const { useAuthStore } = await import('@/lib/auth')
-
-describe('API client configuration', () => {
-  it('调用 axios.create 创建实例', () => {
-    expect(mockCreate).toHaveBeenCalled()
-  })
-
-  it('创建时传入了配置对象', () => {
-    const configArg = mockCreate.mock.calls[0]
-    expect(configArg).toBeDefined()
-  })
-
-  it('baseURL 为 /api 或 VITE_API_URL', () => {
-    const configArg = mockCreate.mock.calls[0]
-    // configArg is the first argument passed to axios.create
-    expect(configArg).toBeDefined()
-  })
-
-  it('withCredentials 为 true', () => {
-    expect(mockCreate).toHaveBeenCalled()
-  })
-
-  it('include credentials 配置', () => {
-    expect(mockCreate).toHaveBeenCalled()
-  })
-
-  it('api 实例具有 CRUD 方法', () => {
-    expect(typeof api.get).toBe('function')
-    expect(typeof api.post).toBe('function')
-    expect(typeof api.put).toBe('function')
-    expect(typeof api.patch).toBe('function')
-    expect(typeof api.delete).toBe('function')
-  })
+afterEach(() => {
+  api.defaults.adapter = originalInstanceAdapter as AxiosAdapter
+  axios.defaults.adapter = originalGlobalAdapter as AxiosAdapter
+  useAuthStore.getState().logout()
 })
 
-describe('request interceptor', () => {
-  it('注册了请求拦截器', () => {
-    expect(mockRequestUse).toHaveBeenCalled()
-  })
-
-  it('当 store 中有 token 时注入 Authorization header', () => {
-    const interceptor = mockRequestUse.mock.calls[0]?.[0] as
-      | ((c: InternalAxiosRequestConfig) => InternalAxiosRequestConfig)
-      | undefined
-
-    if (!interceptor) return
-
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      token: 'test-bearer-token',
-      user: { id: 1, username: 'alice', is_admin: false },
-    } as ReturnType<typeof useAuthStore.getState>)
-
-    const config = {
-      headers: {} as Record<string, string>,
-    } as InternalAxiosRequestConfig
-
-    const result = interceptor(config)
-    expect(result.headers.Authorization).toBe('Bearer test-bearer-token')
-  })
-
-  it('当 store 中无 token 时不添加 Authorization header', () => {
-    const interceptor = mockRequestUse.mock.calls[0]?.[0] as
-      | ((c: InternalAxiosRequestConfig) => InternalAxiosRequestConfig)
-      | undefined
-
-    if (!interceptor) return
-
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      token: null,
-      user: null,
-    } as ReturnType<typeof useAuthStore.getState>)
-
-    const config = {
-      headers: {} as Record<string, string>,
-    } as InternalAxiosRequestConfig
-
-    const result = interceptor(config)
-    expect(result.headers.Authorization).toBeUndefined()
-  })
-})
-
-describe('response interceptor', () => {
-  it('注册了响应拦截器（成功与错误处理函数）', () => {
-    expect(mockResponseUse).toHaveBeenCalled()
-    const successHandler = mockResponseUse.mock.calls[0]?.[0]
-    const errorHandler = mockResponseUse.mock.calls[0]?.[1]
-    expect(typeof successHandler).toBe('function')
-    expect(typeof errorHandler).toBe('function')
-  })
-
-  it('正常响应直接透传', () => {
-    const successHandler = mockResponseUse.mock.calls[0]?.[0] as
-      | ((r: AxiosResponse) => AxiosResponse)
-      | undefined
-
-    if (!successHandler) return
-
-    const response = { data: { ok: true }, status: 200 } as AxiosResponse
-    expect(successHandler(response)).toBe(response)
-  })
-
-  it('非 401 错误直接 reject', async () => {
-    const errorHandler = mockResponseUse.mock.calls[0]?.[1] as
-      | ((e: unknown) => Promise<unknown>)
-      | undefined
-
-    if (!errorHandler) return
-
-    const error = {
-      response: { status: 500 },
-      config: {} as InternalAxiosRequestConfig,
-      isAxiosError: true,
+describe('401 single-flight refresh', () => {
+  it('首个 401 触发一次刷新并用新 token 重放原请求', async () => {
+    let attempts = 0
+    businessHandler = async (cfg) => {
+      attempts += 1
+      if (attempts === 1) throw make401(cfg)
+      return makeResponse(cfg, 200, { ok: true })
     }
 
-    await expect(errorHandler(error)).rejects.toBeDefined()
+    const res = await api.get('/things')
+    expect(res.data).toEqual({ ok: true })
+    expect(refreshCallCount).toBe(1)
+
+    // 重放请求必须携带刷新后的新 token
+    const retries = calls.filter((c) => c.url === '/things')
+    expect(retries).toHaveLength(2)
+    expect(retries[0]?.authorization).toBe('Bearer stale-token')
+    expect(retries[1]?.authorization).toBe('Bearer refreshed-token')
+  })
+
+  it('并发多个 401 只触发一次刷新（single-flight 共享 Promise）', async () => {
+    let attempts = 0
+    businessHandler = async (cfg) => {
+      attempts += 1
+      if (attempts <= 2) throw make401(cfg)
+      return makeResponse(cfg, 200, { n: attempts })
+    }
+
+    const [a, b] = await Promise.all([api.get('/a'), api.get('/b')])
+    expect(a.status).toBe(200)
+    expect(b.status).toBe(200)
+    // 关键断言：两个并发请求只应产生一次 /auth/refresh
+    expect(refreshCallCount).toBe(1)
+  })
+
+  it('刷新自身 401 时登出并向上抛错（不无限循环）', async () => {
+    refreshBehavior = 'fail'
+    businessHandler = async (cfg) => {
+      void cfg
+      throw make401(cfg)
+    }
+
+    await expect(api.get('/protected')).rejects.toBeTruthy()
+    expect(refreshCallCount).toBe(1)
+    expect(useAuthStore.getState().token).toBeNull()
+  })
+
+  it('重试后仍然 401 时直接拒绝（_retried 防循环），不再二次刷新', async () => {
+    businessHandler = async (cfg) => {
+      // 无论重放多少次都 401
+      throw make401(cfg)
+    }
+
+    await expect(api.get('/always-401')).rejects.toBeTruthy()
+    expect(refreshCallCount).toBe(1)
+  })
+})
+
+describe('request side contracts', () => {
+  it('实例默认配置：baseURL=/api、withCredentials、10s 超时、重复参数序列化', () => {
+    expect(api.defaults.baseURL).toBe('/api')
+    expect(api.defaults.withCredentials).toBe(true)
+    expect(api.defaults.timeout).toBe(10_000)
+    expect((api.defaults.paramsSerializer as { indexes?: string }).indexes).toBeNull()
+  })
+
+  it('非幂等请求回显 X-CSRF-Token；GET 不带', async () => {
+    document.cookie = 'csrf=abc123; Path=/'
+    businessHandler = async (cfg) => makeResponse(cfg, 200, {})
+
+    await api.get('/no-csrf')
+    await api.post('/with-csrf', {})
+
+    const get = calls.find((c) => c.method === 'get')
+    const post = calls.find((c) => c.method === 'post')
+    expect(get?.csrfToken).toBeUndefined()
+    expect(post?.csrfToken).toBe('abc123')
+    document.cookie = 'csrf=; Path=/; Max-Age=0'
+  })
+
+  it('无 token 时请求不带 Authorization 头', async () => {
+    useAuthStore.setState({ token: null, user: null })
+    businessHandler = async (cfg) => makeResponse(cfg, 200, {})
+    await api.get('/anon')
+    expect(calls[0]?.authorization).toBeUndefined()
   })
 })
