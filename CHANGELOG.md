@@ -9,7 +9,23 @@
 
 ## [Unreleased]
 
-#### 计划中的 0.2.0(架构与国际化):后端 submission 模块 service 层拆分、前端 API hooks 按域拆分、MSW hook 测试、i18n 基础设施。
+### Added
+
+- i18n 基础设施(i18next + react-i18next)与语言切换器;auth 集群四页
+  (登录/注册/忘记密码/重置密码)迁移至 `auth` 命名空间,zh-CN 文案与
+  历史硬编码逐字一致(E2E 选择器不受影响),en 资源全量提供。
+- MSW hook 层测试:锁定「分页参数必须进 queryKey」「mutation 成功后
+  detail 直写 + 前缀失效」等缓存契约(onUnhandledRequest: error)。
+
+### Changed
+
+- submission 模块拆分:1308 行单体 routes.py 分解为 services.py(共享
+  业务逻辑)+ author_routes.py + editor_routes.py,聚合器按序组装;
+  API 路径/行为逐字不变,review 与 decision 共用资源解析助手。
+- 前端 use-modules.ts(1038 行)按域拆分为 keys.ts + 十一个域文件,
+  原路径保留为桶导出,既有 import 全部兼容。
+
+#### 后续:catalog / AppShell 等页面沿用 auth 模式继续迁移 i18n(phase 2)。
 
 ## [0.1.3] — 2026-08-22
 
