@@ -214,7 +214,7 @@ async def _seed_resources(session: AsyncSession, tenant_a: uuid.UUID, tenant_b: 
     await session.commit()
 
 
-@pytest.mark.asyncio(loop_scope="module")
+@pytest.mark.asyncio
 async def test_experiment_a_own_tenant_returns_all_rows(pg_engine):
     """Experiment A: user A queries own resources with RLS enabled.
 
@@ -239,7 +239,7 @@ async def test_experiment_a_own_tenant_returns_all_rows(pg_engine):
         assert count == 5, f"expected 5 own-tenant rows, got {count}"
 
 
-@pytest.mark.asyncio(loop_scope="module")
+@pytest.mark.asyncio
 async def test_experiment_b_rls_catches_cross_tenant_leak(pg_engine):
     """Experiment B: deliberately flawed filter + RLS enabled → 0 leak.
 
@@ -271,7 +271,7 @@ async def test_experiment_b_rls_catches_cross_tenant_leak(pg_engine):
         )
 
 
-@pytest.mark.asyncio(loop_scope="module")
+@pytest.mark.asyncio
 async def test_experiment_c_disabling_rls_causes_leak(pg_engine):
     """Experiment C: same flawed filter + RLS disabled → leak confirmed.
 
@@ -306,7 +306,7 @@ async def test_experiment_c_disabling_rls_causes_leak(pg_engine):
         await session.commit()
 
 
-@pytest.mark.asyncio(loop_scope="module")
+@pytest.mark.asyncio
 async def test_rls_default_deny_when_no_context_set(pg_engine):
     """Default-deny: when no app.current_tenant_id is set, RLS returns 0 rows.
 
